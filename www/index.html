@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Rust Robbo</title>
+    <style>
+        #fps {
+          white-space: pre;
+          font-family: monospace;
+        }
+        body {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          background-color: black;
+        }
+        #inventory {
+          color: gray;
+          font-weight: bold;
+          font-family: monospace;
+          font-size: 16px;
+        }
+      </style>
+  </head>
+  <body>
+      <canvas id="robbo-canvas" width="1" height="1"></canvas>
+      <canvas id="offscreen-canvas" width="512" height="512" style="display: none"></canvas>
+      <h1 id="inventory"></p>
+      <script src="./bootstrap.js"></script>
+      <div id="fps"></div>
+  </body>
+</html>
