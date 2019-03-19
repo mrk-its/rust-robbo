@@ -26,14 +26,18 @@ loadImage(['data/skins/original/icons32.png']).then(function(images) {
     function get_current_level() {
       return localStorage.current_level && parseInt(localStorage.current_level) || 0
     }
+    function get_current_levelset() {
+      return localStorage.current_levelset && parseInt(localStorage.current_levelset) || 0
+    }
 
-    function store_current_level(level) {
+    function store_current_level(levelset, level) {
+      localStorage.current_levelset = levelset
       localStorage.current_level = level
     }
 
     const image_data = get_image_data(images[0]);
-
-    const universe = Universe.new(image_data, get_current_level())
+    console.log(get_current_levelset(), get_current_level())
+    const universe = Universe.new(image_data, get_current_levelset(), get_current_level())
     const inventory = document.getElementById("inventory")
     const canvas = document.getElementById("robbo-canvas")
     let ctx = canvas.getContext('2d');
@@ -43,8 +47,11 @@ loadImage(['data/skins/original/icons32.png']).then(function(images) {
           canvas.height = universe.height()
           ctx = canvas.getContext('2d');
         }
-        let current_level = universe.current_level()
-        if(current_level != get_current_level()) store_current_level(current_level);
+        let current_level = universe.get_current_level()
+        let current_levelset = universe.get_current_levelset()
+        if(current_level != get_current_level() || current_levelset != get_current_levelset()) {
+          store_current_level(current_levelset, current_level);
+        }
         universe.draw(ctx);
         inventory.textContent = universe.get_inventory();
         requestAnimationFrame(renderLoop);

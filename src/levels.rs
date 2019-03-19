@@ -79,6 +79,9 @@ impl LevelSet {
             levels: levels,
         }
     }
+    pub fn size(&self) -> usize {
+        self.levels.len()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

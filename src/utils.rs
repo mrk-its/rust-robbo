@@ -47,3 +47,7 @@ pub fn rotate_counter_clockwise((x, y): Direction) -> Direction {
 pub fn dest_coords((x, y): Position, (kx, ky): Direction) -> Position {
     (x + kx, y + ky)
 }
+
+pub fn modulo(n: i32, k: i32) -> i32 {
+    ((n % k) + k) % k
+}

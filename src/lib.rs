@@ -17,8 +17,7 @@ mod random;
 
 use types::Direction;
 use std::collections::HashMap;
-
-use utils::{rotate_clockwise, set_panic_hook};
+use utils::{rotate_clockwise, modulo, set_panic_hook};
 use board::Board;
 use std::cmp::min;
 use log::log;
@@ -51,8 +50,9 @@ pub struct ArrowKeys {
 pub struct Universe {
     frame_cnt: usize,
     current_level: usize,
+    current_levelset: usize,
     skin_image_data: ImageData,
-    level_set: LevelSet,
+    level_sets: Vec<LevelSet>,
     board: Board,
     last_chars: String,
     tile_map: HashMap<usize,usize>,
@@ -64,10 +64,8 @@ pub struct Universe {
 #[wasm_bindgen]
 impl Universe {
 
-    pub fn load_level(&mut self, level_nr: i32) {
-        let num_levels = self.level_set.levels.len() as i32;
-        self.current_level = (((level_nr % num_levels) + num_levels) % num_levels) as usize;
-        let level = &self.level_set.levels[self.current_level];
+    pub fn reload_level(&mut self) {
+        let level = &self.level_sets[self.current_levelset].levels[self.current_level];
         log(&format!("{:#?}", level));
         self.board = Board::from(level);
     }
@@ -103,13 +101,29 @@ impl Universe {
                 "Escape" => {self.board.kill_robbo(); return true}
                 "Backslash" => {self.is_rotated = !self.is_rotated; return true}
                 "BracketLeft" => {
-                    let level_nr = (self.current_level as i32) - 1;
-                    self.load_level(level_nr);
+                    if is_shift {
+                        self.current_levelset = modulo(
+                            self.current_levelset as i32 - 1,
+                            self.level_sets.len() as i32
+                        ) as usize;
+                        self.current_level = 0;
+                    } else {
+                        self.current_level = modulo(
+                            self.current_level as i32 -1,
+                            self.level_sets[self.current_levelset].size() as i32
+                        ) as usize;
+                    }
+                    self.reload_level();
                     return true;
                 },
                 "BracketRight" => {
-                    let level_nr = self.current_level as i32 + 1;
-                    self.load_level(level_nr);
+                    if is_shift {
+                        self.current_levelset = (self.current_levelset + 1) % self.level_sets.len();
+                        self.current_level = 0;
+                    } else {
+                        self.current_level = (self.current_level + 1) % self.level_sets[self.current_levelset].size();
+                    }
+                    self.reload_level();
                     return true;
                 },
                 _ => {
@@ -141,14 +155,16 @@ impl Universe {
         is_handled
     }
 
-    pub fn new(skin_image_data: &ImageData, current_level: usize) -> Universe {
+    pub fn new(skin_image_data: &ImageData, current_levelset: usize, current_level: usize) -> Universe {
         console::log_1(&JsValue::from_str("hello from wasm!"));
         set_panic_hook();
 
         let skin_image_data = skin_image_data.clone();
-        let level_set = LevelSet::parse(original_level_data::ORIGINAL_LEVEL_DATA);
-        // let level_set = LevelSet::parse(forever_level_data::FOREVER_LEVEL_DATA);
-        let board = Board::from(&level_set.levels[current_level]);
+        let level_sets = vec![
+            LevelSet::parse(original_level_data::LEVEL_DATA),
+            LevelSet::parse(forever_level_data::LEVEL_DATA),
+        ];
+        let board = Board::from(&level_sets[current_levelset].levels[current_level]);
         let tile_mappings = vec![
             (36, 38), // bullet / laser
             (37, 39),
@@ -169,8 +185,9 @@ impl Universe {
         Universe {
             frame_cnt: 0,
             current_level,
+            current_levelset,
             skin_image_data,
-            level_set,
+            level_sets,
             board,
             last_chars: String::from(""),
             tile_map,
@@ -187,8 +204,11 @@ impl Universe {
         (if !self.is_rotated {self.board.height} else {self.board.width} * 32) as usize
     }
 
-    pub fn current_level(&self) -> usize {
+    pub fn get_current_level(&self) -> usize {
         self.current_level
+    }
+    pub fn get_current_levelset(&self) -> usize {
+        self.current_levelset
     }
 
     pub fn get_inventory(&self) -> String {
@@ -229,6 +249,15 @@ impl Universe {
         ).unwrap();
     }
 
+    pub fn load_next_level(&mut self) {
+        self.current_level += 1;
+        if self.current_level >= self.level_sets[self.current_levelset].size() {
+            self.current_level = 0;
+            self.current_levelset = (self.current_levelset + 1) % self.level_sets.len()
+        }
+        self.reload_level();
+    }
+
     pub fn draw(&mut self, ctx: &CanvasRenderingContext2d) {
 //        let image_data = ImageData::new_with_u8_clamped_array_and_sh(Clamped(&mut self.image_data), (self.width * 4) as u32, (self.height * 4) as u32).unwrap();
 /*        if !self.tick() {
@@ -236,14 +265,12 @@ impl Universe {
         }*/
         if self.frame_cnt % 8 == 0 {
             if self.board.finished {
-                let level_nr = self.current_level + 1;
-                self.load_level(level_nr as i32);
+                self.load_next_level();
                 return
             }
             self.board.tick();
             if self.board.is_robbo_killed() {
-                let level_nr = self.current_level;
-                self.load_level(level_nr as i32);
+                self.reload_level();
                 return
             }
             for y in 0..self.board.height {

@@ -1,4 +1,4 @@
-pub const ORIGINAL_LEVEL_DATA:&str = "
+pub const LEVEL_DATA:&str = "
  It's the file format for new levels :-
 
  Symbol | Data        | Additional Data
