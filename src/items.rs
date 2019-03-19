@@ -331,7 +331,7 @@ impl Item for Butterfly {
             }
         }
         neighbours.get_robbo_dir().map(|(dx, dy)| {
-            if dx.abs() > dy.abs() {
+            if dx.abs() < dy.abs() {
                 if dx != 0 && neighbours.is_empty((dx.signum(), 0)) {
                     (dx.signum(), 0)
                 } else if dy != 0  && neighbours.is_empty((0, dy.signum())) {

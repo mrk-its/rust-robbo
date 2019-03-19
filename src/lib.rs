@@ -147,7 +147,7 @@ impl Universe {
 
         let skin_image_data = skin_image_data.clone();
         let level_set = LevelSet::parse(original_level_data::ORIGINAL_LEVEL_DATA);
-        let level_set = LevelSet::parse(forever_level_data::FOREVER_LEVEL_DATA);
+        // let level_set = LevelSet::parse(forever_level_data::FOREVER_LEVEL_DATA);
         let board = Board::from(&level_set.levels[current_level]);
         let tile_mappings = vec![
             (36, 38), // bullet / laser
