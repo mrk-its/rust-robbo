@@ -41,6 +41,9 @@ pub trait Item {
     fn as_magnet(&self) -> Option<&Magnet> {
         None
     }
+    fn as_force_field(&self) -> Option<&ForceField> {
+        None
+    }
 }
 
 #[derive(Debug)]
@@ -110,6 +113,32 @@ impl Item for Capsule {
         } else {
             None
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct ForceField {
+    simple_item: SimpleItem,
+    pub direction: u16,
+}
+
+impl ForceField {
+    pub fn new(params: &[u16]) -> ForceField {
+        ForceField {
+            simple_item: SimpleItem::new(Kind::ForceField, &[45, 57]).flags(DESTROYABLE),
+            direction: params[0],
+        }
+    }
+}
+
+impl Item for ForceField {
+    fn get_tile(&self, frame_cnt: usize) -> usize {
+        self.simple_item.get_tile(frame_cnt)
+    }
+    fn get_kind(&self) -> Kind {self.simple_item.get_kind()}
+    fn get_flags(&self) -> u16 {self.simple_item.get_flags()}
+    fn as_force_field(&self) -> Option<&ForceField> {
+        Some(self)
     }
 }
 

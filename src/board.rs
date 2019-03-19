@@ -11,6 +11,7 @@ use levels::Level;
 use crate::items::{
     Item, SimpleItem, Animation, Door, Teleport, Butterfly, Bear, Bird,
     LaserHead, BlastHead, Bullet, Bomb, Capsule, Gun, GunType, Magnet, PushBox,
+    ForceField,
 };
 
 #[derive(Debug)]
@@ -129,7 +130,7 @@ impl Board {
                     'L' => Some(Box::new(SimpleItem::new(Kind::HorizontalLaser, &[53]))),
                     'l' => Some(Box::new(SimpleItem::new(Kind::VerticalLaser, &[53]))),
                     'M' => Some(Box::new(Magnet::new(additional.unwrap_or(&[0])))),
-                    '=' => Some(Box::new(SimpleItem::new(Kind::ForceField, &[45, 57]).flags(DESTROYABLE))),
+                    '=' => Some(Box::new(ForceField::new(additional.unwrap_or(&[0])))),
                     _ => None,
                 };
                 items.push(tile);
@@ -375,10 +376,17 @@ impl Board {
             },
         }
         for y in 0..self.height {
+            let mut skip_to = 0;
             for x in 0..self.width {
+                if x < skip_to {
+                    continue;
+                }
                 let pos = (x, y);
                 if self.is_processed(pos) {
                     continue;
+                }
+                if self.get_kind((x, y)) == Kind::ForceField {
+                    skip_to = self.process_force_field(pos);
                 }
                 let neighbours = self.get_neighbourhood(pos, robbo_pos);
                 let actions = {
@@ -392,6 +400,43 @@ impl Board {
                 self.dispatch_actions(actions, pos);
             }
         }
+    }
+
+    pub fn process_force_field(&mut self, (x, y): Position) -> i32 {
+        let mut wall_x1 = x;
+        let mut wall_x2 = x;
+        while self.get_kind((wall_x1 - 1, y)) != Kind::Wall {
+            wall_x1 -= 1;
+        }
+        while self.get_kind((wall_x2, y)) != Kind::Wall {
+            wall_x2 += 1;
+        }
+        let ff_dir = self.get_item((x, y)).as_ref().unwrap().as_force_field().unwrap().direction;
+        let (mut x, end_x, step) = if ff_dir == 0 {
+            (wall_x1, wall_x2, 1)
+        } else {
+            (wall_x2-1, wall_x1-1, -1)
+        };
+
+        let tmp = if self.get_kind((x, y)) == Kind::ForceField {
+            self.items[(y * self.width + x) as usize].take()
+        } else {
+            None
+        };
+        x += step;
+
+        while x != end_x {
+            if self.get_kind((x, y)) == Kind::ForceField {
+                self.swap((x - step, y), (x, y));
+                self.remove((x, y));
+            }
+            x += step;
+        }
+
+        if tmp.is_some() {
+            self.items[(y * self.width + x - step) as usize].replace(tmp.unwrap());
+        }
+        wall_x2
     }
 
     pub fn find_robbo(&self) -> Option<Position> {
