@@ -223,7 +223,7 @@ pub struct Magnet {
 impl Magnet {
     pub fn new(params: &[u16]) -> Magnet {
         Magnet {
-            simple_item: SimpleItem::new(Kind::Magnet, &[0, 72, 1, 73]).flags(UNDESTROYABLE|DEADLY),
+            simple_item: SimpleItem::new(Kind::Magnet, &[0, 72, 1, 73]).flags(UNDESTROYABLE),
             dir: params[0] as usize,
         }
     }

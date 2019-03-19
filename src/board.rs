@@ -350,22 +350,30 @@ impl Board {
         match robbo_pos {
             Some(pos) => {
                 let neighbours = self.get_neighbourhood(pos, robbo_pos);
-                if neighbours.is_deadly() {
-                    self.destroy(pos, false);
-                } else
-                if neighbours.get_magnetic_force_dir().is_some() {
-                    self.robbo_move_or_shot(pos, neighbours.magnetic_force_dir.unwrap(), false);
-                } else {
-                    let actions = match (self.robbo_shooting_dir, self.robbo_moving_dir) {
-                        (Some(direction), _) => {
-                            self.robbo_shooting_dir = None;
-                            self.robbo_move_or_shot(pos, direction, true)
-                        },
-                        (_, Some(direction)) => self.robbo_move_or_shot(pos, direction, false),
-                        _ => None,
-                    };
-                    self.dispatch_actions(actions, pos);
-                };
+                match neighbours.get_magnetic_force_dir() {
+                    Some(dir) => {
+                        self.robbo_move_or_shot(pos, dir, false);
+                        if self.get_kind(dest_coords(pos, dir)) == Kind::Magnet {
+                            self.destroy(pos, false)
+                        }
+                    },
+                    None => {
+                        if neighbours.is_deadly() {
+                            self.destroy(pos, false);
+                        } else {
+                            let actions = match (self.robbo_shooting_dir, self.robbo_moving_dir) {
+                                (Some(direction), _) => {
+                                    self.robbo_shooting_dir = None;
+                                    self.robbo_move_or_shot(pos, direction, true)
+                                },
+                                (_, Some(direction)) => self.robbo_move_or_shot(pos, direction, false),
+                                _ => None,
+                            };
+                            self.dispatch_actions(actions, pos);
+                        }
+
+                    }
+                }
                 self.missing_robbo_ticks = 0;
             },
             None => {
