@@ -66,6 +66,21 @@ impl SimpleItem {
             &[38, 39]
         }).flags(UNDESTROYABLE)
     }
+    pub fn screw() -> SimpleItem {
+        SimpleItem::new(Kind::Screw, &[4]).flags(COLLECTABLE | MOVEABLE)
+    }
+    pub fn questionmark() -> SimpleItem {
+        SimpleItem::new(Kind::Questionmark, &[12]).flags(DESTROYABLE|MOVEABLE)
+    }
+    pub fn bullets() -> SimpleItem {
+        SimpleItem::new(Kind::Bullets, &[5]).flags(DESTROYABLE | COLLECTABLE)
+    }
+    pub fn key() -> SimpleItem {
+        SimpleItem::new(Kind::Key, &[42]).flags(COLLECTABLE)
+    }
+    pub fn ground() -> SimpleItem {
+        SimpleItem::new(Kind::Ground, &[77]).flags(DESTROYABLE)
+    }
 }
 impl Item for SimpleItem {
     fn get_tile(&self, frame_cnt: usize) -> usize {self.tiles[frame_cnt / 2 % self.tiles.len()]}
@@ -635,6 +650,13 @@ impl Animation {
             simple_item: SimpleItem::new(Kind::Explosion, &[50, 51, 52]).flags(UNDESTROYABLE),
             frame: 0,
             final_action: Action::SpawnRobbo,
+        }
+    }
+    pub fn question_mark_explosion() -> Animation {
+        Animation {
+            simple_item: SimpleItem::new(Kind::Explosion, &[50, 51, 52]).flags(UNDESTROYABLE),
+            frame: 0,
+            final_action: Action::SpawnRandomItem,
         }
     }
     pub fn blast_tail() -> Animation {

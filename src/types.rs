@@ -44,6 +44,7 @@ pub enum Action {
     CreateBlast(Direction),
     DestroyBullet,
     SpawnRobbo,
+    SpawnRandomItem,
     TeleportRobbo(u16, u16, Direction),
     NextLevel,
 }

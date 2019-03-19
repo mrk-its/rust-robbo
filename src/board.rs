@@ -107,13 +107,13 @@ impl Board {
                     'P' => Some(Box::new(SimpleItem::new(Kind::Wall, &[69]).flags(UNDESTROYABLE))),
                     's' => Some(Box::new(SimpleItem::new(Kind::Wall, &[10]).flags(UNDESTROYABLE))),
                     'S' => Some(Box::new(SimpleItem::new(Kind::Wall, &[22]).flags(UNDESTROYABLE))),
-                    'H' => Some(Box::new(SimpleItem::new(Kind::Ground, &[77]).flags(DESTROYABLE))),
+                    'H' => Some(Box::new(SimpleItem::ground())),
                     'T' => {
                         missing_screws += 1;
-                        Some(Box::new(SimpleItem::new(Kind::Screw, &[4]).flags(COLLECTABLE | MOVEABLE)))
+                        Some(Box::new(SimpleItem::screw()))
                     },
-                    '\'' => Some(Box::new(SimpleItem::new(Kind::Bullets, &[5]).flags(DESTROYABLE | COLLECTABLE))),
-                    '%' => Some(Box::new(SimpleItem::new(Kind::Key, &[42]).flags(COLLECTABLE))),
+                    '\'' => Some(Box::new(SimpleItem::bullets())),
+                    '%' => Some(Box::new(SimpleItem::key())),
                     'D' => Some(Box::new(Door::new())),
                     '#' => Some(Box::new(SimpleItem::new(Kind::ABox, &[20]).flags(MOVEABLE))),
                     '&' => Some(Box::new(Teleport::new(additional.unwrap_or(&[0, 0])))),
@@ -121,7 +121,7 @@ impl Board {
                     '!' => Some(Box::new(Capsule::new())),
                     '~' => Some(Box::new(PushBox::new())),
                     'b' => Some(Box::new(Bomb::new())),
-                    '?' => Some(Box::new(SimpleItem::new(Kind::Questionmark, &[12]).flags(DESTROYABLE|MOVEABLE))),
+                    '?' => Some(Box::new(SimpleItem::questionmark())),
                     'V' => Some(Box::new(Butterfly::new())),
                     '@' => Some(Box::new(Bear::new(Kind::Bear, additional.unwrap_or(&[0]), &[13, 14]))),
                     '*' => Some(Box::new(Bear::new(Kind::BlackBear, additional.unwrap_or(&[0]), &[30, 31]))),
@@ -297,6 +297,22 @@ impl Board {
                         Action::SpawnRobbo => {
                             self.replace(pos, Some(Box::new(SimpleItem::new(Kind::Robbo, &[60, 61, 62, 63, 64, 65, 66, 67]).flags(DESTROYABLE))))
                         },
+                        Action::SpawnRandomItem => {
+                            // empty field, push box, screw, bullet, key, bomb, ground, butterfly, gun or another questionmark
+                            let item:Box<Item> = match random::randrange(10) {
+                                1 => Box::new(PushBox::new()),
+                                2 => Box::new(SimpleItem::screw()),
+                                3 => Box::new(SimpleItem::bullets()),
+                                4 => Box::new(SimpleItem::key()),
+                                5 => Box::new(Bomb::new()),
+                                6 => Box::new(SimpleItem::ground()),
+                                7 => Box::new(Butterfly::new()),
+                                8 => Box::new(Gun::new(&[0, 0, 0, 0, 0, 1])),
+                                9 => Box::new(SimpleItem::questionmark()),
+                                _ => Box::new(Animation::small_explosion()),
+                            };
+                            self.replace(pos, Some(item))
+                        },
                         Action::TeleportRobbo(group, position_in_group, direction) => {
                             self.teleport_robbo(group, position_in_group, direction);
                         },
@@ -460,19 +476,24 @@ impl Board {
         if x<0 || y< 0 || x>=self.width || y>=self.height {
             return
         }
-        let (is_destroyable, is_bomb_destroyable) = {
+        let (is_destroyable, is_bomb_destroyable, is_question_mark) = {
             match self.get_mut_item(pos) {
                 Some(it) => {
                     if it.destroy() {
                         return;
                     }
-                    (it.is_destroyable(), !it.is_undestroyable())
+                    (it.is_destroyable(), !it.is_undestroyable(), it.get_kind() == Kind::Questionmark)
                 },
-                None => (false, true)
+                None => (false, true, false)
             }
         };
         if is_destroyable || force && is_bomb_destroyable {
-            self.replace(pos, Some(Box::new(Animation::small_explosion())));
+            let animation = if is_question_mark {
+                Animation::question_mark_explosion()
+            } else {
+                Animation::small_explosion()
+            };
+            self.replace(pos, Some(Box::new(animation)));
         }
     }
 
