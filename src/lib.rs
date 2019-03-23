@@ -13,6 +13,7 @@ mod items;
 mod board;
 mod original_level_data;
 mod forever_level_data;
+mod playground_level_data;
 mod random;
 
 use types::Direction;
@@ -163,6 +164,7 @@ impl Universe {
         let level_sets = vec![
             LevelSet::parse(original_level_data::LEVEL_DATA),
             LevelSet::parse(forever_level_data::LEVEL_DATA),
+            LevelSet::parse(playground_level_data::LEVEL_DATA),
         ];
         let board = Board::from(&level_sets[current_levelset].levels[current_level]);
         let tile_mappings = vec![

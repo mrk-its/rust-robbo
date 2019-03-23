@@ -577,10 +577,12 @@ impl Item for BlastHead {
         self.simple_item.get_tile(frame_cnt)
     }
     fn tick(&mut self, neighbours: &Neighbourhood) -> Actions {
-        if neighbours.is_empty(self.direction) || (neighbours.get_flags(self.direction) & DESTROYABLE) > 0 {
+        if neighbours.is_empty(self.direction)
+           || (neighbours.get_flags(self.direction) & DESTROYABLE) > 0
+           && (neighbours.get_kind(self.direction) != Kind::Bomb) {
             Some(vec![Action::BlastHeadMove(self.direction)])
         } else {
-            Some(vec![Action::BlastHeadDestroy])
+            Some(vec![Action::BlastHeadDestroy, Action::RelImpact(self.direction, false)])
         }
     }
     fn get_kind(&self) -> Kind {self.simple_item.get_kind()}
