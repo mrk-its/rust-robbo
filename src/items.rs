@@ -181,12 +181,13 @@ impl Gun {
     const ROTATE_PROBABILITY: f64 = 0.25;
 
     pub fn new(params: &[u16]) -> Gun {
+        let is_moveable = params[3] > 0;
         Gun {
-            simple_item: SimpleItem::new(Kind::Gun, &[53, 54, 55, 56]).flags(UNDESTROYABLE|MOVEABLE),
+            simple_item: SimpleItem::new(Kind::Gun, &[53, 54, 55, 56]).flags(if is_moveable {MOVEABLE} else {0}),
             shooting_dir: direction_by_index(params[0] as usize),
             moving_dir: direction_by_index(params[1] as usize),
             gun_type: match params[2] {1 => GunType::Solid, 2 => GunType::Blaster, _ => GunType::Burst},
-            is_moveable: params[3] > 0,
+            is_moveable,
             is_rotateable: *params.get(4).unwrap_or(&0) > 0,
             is_random_rotatable: *params.get(5).unwrap_or(&0) > 0,
             disabled: false,
