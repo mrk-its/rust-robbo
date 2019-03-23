@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use crate::random;
 
 use log::log;
-use consts::{COLLECTABLE, MOVEABLE, DESTROYABLE, UNDESTROYABLE, DEADLY};
+use consts::{MOVEABLE, DESTROYABLE, UNDESTROYABLE, DEADLY};
 use types::{Kind, Flags, Action, Actions, Direction, Position};
 use utils::{direction_to_index, direction_by_index, rotate_clockwise, rotate_counter_clockwise, dest_coords};
 use levels::Level;

@@ -97,7 +97,7 @@ pub struct Capsule {
 impl Capsule {
     pub fn new() -> Capsule {
         Capsule {
-            simple_item: SimpleItem::new(Kind::Capsule, &[17, 18]).flags(MOVEABLE),
+            simple_item: SimpleItem::new(Kind::Capsule, &[17, 18]).flags(MOVEABLE|UNDESTROYABLE),
             is_working: false,
         }
     }
@@ -239,7 +239,7 @@ pub struct Magnet {
 impl Magnet {
     pub fn new(params: &[u16]) -> Magnet {
         Magnet {
-            simple_item: SimpleItem::new(Kind::Magnet, &[0, 72, 1, 73]).flags(UNDESTROYABLE),
+            simple_item: SimpleItem::new(Kind::Magnet, &[0, 72, 1, 73]),
             dir: params[0] as usize,
         }
     }
