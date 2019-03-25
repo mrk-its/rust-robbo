@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use crate::random;
 
 use log::log;
-use consts::{MOVEABLE, DESTROYABLE, UNDESTROYABLE, DEADLY};
+use consts::{DEADLY};
 use types::{Kind, Flags, Action, Actions, Direction, Position};
 use utils::{direction_to_index, direction_by_index, rotate_clockwise, rotate_counter_clockwise, dest_coords};
 use levels::Level;
@@ -98,15 +98,15 @@ impl Board {
                     |v| &v[..]
                 );
                 let tile: Option<Box<Item>> = match c {
-                    'O' => Some(Box::new(SimpleItem::new(Kind::Wall, &[2]).flags(UNDESTROYABLE))),
-                    'o' => Some(Box::new(SimpleItem::new(Kind::Wall, &[29]).flags(UNDESTROYABLE))),
-                    '-' => Some(Box::new(SimpleItem::new(Kind::Wall, &[19]).flags(UNDESTROYABLE))),
-                    'Q' => Some(Box::new(SimpleItem::new(Kind::Wall, &[3]).flags(UNDESTROYABLE))),
-                    'q' => Some(Box::new(SimpleItem::new(Kind::Wall, &[21]).flags(UNDESTROYABLE))),
-                    'p' => Some(Box::new(SimpleItem::new(Kind::Wall, &[68]).flags(UNDESTROYABLE))),
-                    'P' => Some(Box::new(SimpleItem::new(Kind::Wall, &[69]).flags(UNDESTROYABLE))),
-                    's' => Some(Box::new(SimpleItem::new(Kind::Wall, &[10]).flags(UNDESTROYABLE))),
-                    'S' => Some(Box::new(SimpleItem::new(Kind::Wall, &[22]).flags(UNDESTROYABLE))),
+                    'O' => Some(Box::new(SimpleItem::wall(&[2]))),
+                    'o' => Some(Box::new(SimpleItem::wall(&[29]))),
+                    '-' => Some(Box::new(SimpleItem::wall(&[19]))),
+                    'Q' => Some(Box::new(SimpleItem::wall(&[3]))),
+                    'q' => Some(Box::new(SimpleItem::wall(&[21]))),
+                    'p' => Some(Box::new(SimpleItem::wall(&[68]))),
+                    'P' => Some(Box::new(SimpleItem::wall(&[69]))),
+                    's' => Some(Box::new(SimpleItem::wall(&[10]))),
+                    'S' => Some(Box::new(SimpleItem::wall(&[22]))),
                     'H' => Some(Box::new(SimpleItem::ground())),
                     'T' => {
                         missing_screws += 1;
@@ -115,7 +115,7 @@ impl Board {
                     '\'' => Some(Box::new(SimpleItem::bullets())),
                     '%' => Some(Box::new(SimpleItem::key())),
                     'D' => Some(Box::new(Door::new())),
-                    '#' => Some(Box::new(SimpleItem::new(Kind::ABox, &[20]).flags(MOVEABLE))),
+                    '#' => Some(Box::new(SimpleItem::abox())),
                     '&' => Some(Box::new(Teleport::new(additional.unwrap_or(&[0, 0])))),
                     'R' => Some(Box::new(Animation::spawn_robbo())),
                     '!' => Some(Box::new(Capsule::new())),
@@ -127,8 +127,8 @@ impl Board {
                     '*' => Some(Box::new(Bear::new(Kind::BlackBear, additional.unwrap_or(&[0]), &[30, 31]))),
                     '^' => Some(Box::new(Bird::new(additional.unwrap_or(&[0, 0, 0])))),
                     '}' => Some(Box::new(Gun::new(additional.unwrap_or(&[0, 0, 0, 0, 0, 0])))),
-                    'L' => Some(Box::new(SimpleItem::new(Kind::HorizontalLaser, &[53]))),
-                    'l' => Some(Box::new(SimpleItem::new(Kind::VerticalLaser, &[53]))),
+                    'L' => Some(Box::new(SimpleItem::horizontal_laser())),
+                    'l' => Some(Box::new(SimpleItem::vertical_laser())),
                     'M' => Some(Box::new(Magnet::new(additional.unwrap_or(&[0])))),
                     '=' => Some(Box::new(ForceField::new(additional.unwrap_or(&[0])))),
                     _ => None,
@@ -295,7 +295,7 @@ impl Board {
                             self.blaster_shot(pos, direction);
                         },
                         Action::SpawnRobbo => {
-                            self.replace(pos, Some(Box::new(SimpleItem::new(Kind::Robbo, &[60, 61, 62, 63, 64, 65, 66, 67]).flags(DESTROYABLE))))
+                            self.replace(pos, Some(Box::new(SimpleItem::robbo())))
                         },
                         Action::SpawnRandomItem => {
                             // empty field, push box, screw, bullet, key, bomb, ground, butterfly, gun or another questionmark

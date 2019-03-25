@@ -5,12 +5,19 @@ use board::{Neighbourhood, Inventory};
 use random;
 
 pub trait Item {
-    fn get_tile(&self, frame_cnt: usize) -> usize;
+    fn get_simple_item(&self) -> &SimpleItem;
+    fn get_tile(&self, frame_cnt: usize) -> usize {
+        self.get_simple_item().get_tile(frame_cnt)
+    }
     fn tick(&mut self, _neighbours: &Neighbourhood) -> Actions {
         None
     }
-    fn get_kind(&self) -> Kind;
-    fn get_flags(&self) -> Flags;
+    fn get_kind(&self) -> Kind {
+        self.get_simple_item().get_kind()
+    }
+    fn get_flags(&self) -> Flags {
+        self.get_simple_item().get_flags()
+    }
     fn enter(&mut self, _inventory: &mut Inventory, _direction: Direction) -> Actions {
         None
     }
@@ -59,6 +66,24 @@ impl SimpleItem {
     pub fn flags(&self, flags: Flags) -> SimpleItem {
         SimpleItem {flags: flags, ..*self}
     }
+    fn get_tile(&self, frame_cnt: usize) -> usize {self.tiles[frame_cnt / 2 % self.tiles.len()]}
+    fn get_kind(&self) -> Kind {self.kind}
+    fn get_flags(&self) -> Flags {self.flags}
+    pub fn wall(tiles: &'static[usize]) -> SimpleItem {
+        SimpleItem::new(Kind::Wall, tiles).flags(UNDESTROYABLE)
+    }
+    pub fn abox() -> SimpleItem {
+        SimpleItem::new(Kind::ABox, &[20]).flags(MOVEABLE)
+    }
+    pub fn robbo() -> SimpleItem {
+        SimpleItem::new(Kind::Robbo, &[60, 61, 62, 63, 64, 65, 66, 67]).flags(DESTROYABLE)
+    }
+    pub fn horizontal_laser() -> SimpleItem {
+        SimpleItem::new(Kind::HorizontalLaser, &[53])
+    }
+    pub fn vertical_laser() -> SimpleItem {
+        SimpleItem::new(Kind::VerticalLaser, &[53])
+    }
     pub fn laser_tail((dx, _dy): Direction) -> SimpleItem {
         SimpleItem::new(Kind::LaserTail, if dx != 0 {
             &[36, 37]
@@ -82,10 +107,9 @@ impl SimpleItem {
         SimpleItem::new(Kind::Ground, &[77]).flags(DESTROYABLE)
     }
 }
+
 impl Item for SimpleItem {
-    fn get_tile(&self, frame_cnt: usize) -> usize {self.tiles[frame_cnt / 2 % self.tiles.len()]}
-    fn get_kind(&self) -> Kind {self.kind}
-    fn get_flags(&self) -> Flags {self.flags}
+    fn get_simple_item(&self) -> &SimpleItem {self}
 }
 
 #[derive(Debug)]
@@ -107,6 +131,7 @@ impl Capsule {
 }
 
 impl Item for Capsule {
+    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
     fn get_tile(&self, frame_cnt: usize) -> usize {
         if self.is_working {
             self.simple_item.get_tile(frame_cnt)
@@ -117,8 +142,6 @@ impl Item for Capsule {
     fn is_moveable(&self) -> bool {
         !self.is_working
     }
-    fn get_kind(&self) -> Kind {self.simple_item.get_kind()}
-    fn get_flags(&self) -> u16 {self.simple_item.get_flags()}
     fn as_capsule(&mut self) -> Option<&mut Capsule> {
         Some(self)
     }
@@ -147,11 +170,7 @@ impl ForceField {
 }
 
 impl Item for ForceField {
-    fn get_tile(&self, frame_cnt: usize) -> usize {
-        self.simple_item.get_tile(frame_cnt)
-    }
-    fn get_kind(&self) -> Kind {self.simple_item.get_kind()}
-    fn get_flags(&self) -> u16 {self.simple_item.get_flags()}
+    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
     fn as_force_field(&self) -> Option<&ForceField> {
         Some(self)
     }
@@ -195,11 +214,10 @@ impl Gun {
     }
 }
 impl Item for Gun {
+    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
     fn get_tile(&self, _frame_cnt: usize) -> usize {
         self.simple_item.tiles[direction_to_index(self.shooting_dir)]
     }
-    fn get_kind(&self) -> Kind {self.simple_item.get_kind()}
-    fn get_flags(&self) -> Flags {self.simple_item.get_flags()}
     fn tick(&mut self, neighbours: &Neighbourhood) -> Actions {
         let mut actions: Vec<Action> = Vec::new();
         if self.is_moveable {
@@ -248,11 +266,10 @@ impl Magnet {
     }
 }
 impl Item for Magnet {
+    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
     fn get_tile(&self, _frame_cnt: usize) -> usize {
         self.simple_item.tiles[self.dir]
     }
-    fn get_kind(&self) -> Kind {self.simple_item.get_kind()}
-    fn get_flags(&self) -> u16 {self.simple_item.get_flags()}
     fn as_magnet(&self) -> Option<&Magnet> {
         Some(self)
     }
@@ -277,11 +294,7 @@ impl Bird {
 }
 
 impl Item for Bird {
-    fn get_tile(&self, frame_cnt: usize) -> usize {
-        self.simple_item.get_tile(frame_cnt)
-    }
-    fn get_kind(&self) -> Kind {self.simple_item.get_kind()}
-    fn get_flags(&self) -> u16 {self.simple_item.get_flags()}
+    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
     fn tick(&mut self, neighbours: &Neighbourhood) -> Actions {
         let mut actions = vec![];
         if neighbours.is_empty(self.moving_dir) {
@@ -315,12 +328,7 @@ impl Butterfly {
 
 
 impl Item for Butterfly {
-
-    fn get_tile(&self, frame_cnt: usize) -> usize {
-        self.simple_item.get_tile(frame_cnt)
-    }
-    fn get_kind(&self) -> Kind {self.simple_item.get_kind()}
-    fn get_flags(&self) -> u16 {self.simple_item.get_flags()}
+    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
     fn tick(&mut self, neighbours: &Neighbourhood) -> Actions {
         if random::random() > Butterfly::MOVE_PROBABILITY {
             return None;
@@ -369,12 +377,7 @@ impl Bear {
 
 
 impl Item for Bear {
-    fn get_tile(&self, frame_cnt: usize) -> usize {
-        self.simple_item.get_tile(frame_cnt)
-    }
-    fn get_kind(&self) -> Kind {self.simple_item.get_kind()}
-    fn get_flags(&self) -> u16 {self.simple_item.get_flags()}
-
+    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
     fn tick(&mut self, neighbours: &Neighbourhood) -> Actions {
         let mut actions = vec![];
 
@@ -412,9 +415,7 @@ impl Door {
     }
 }
 impl Item for Door {
-    fn get_tile(&self, frame_cnt: usize) -> usize {
-        self.simple_item.get_tile(frame_cnt)
-    }
+    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
     fn enter(&mut self, inventory: &mut Inventory, _direction: Direction) -> Actions {
         if inventory.keys > 0 {
             inventory.keys -= 1;
@@ -423,8 +424,6 @@ impl Item for Door {
         }
         None
     }
-    fn get_kind(&self) -> Kind {self.simple_item.get_kind()}
-    fn get_flags(&self) -> u16 {self.simple_item.get_flags()}
     fn tick(&mut self, _neighbours: &Neighbourhood) -> Actions {
         if self.open {
             Some(vec![Action::AutoRemove])
@@ -452,14 +451,10 @@ impl Teleport {
 }
 
 impl Item for Teleport {
-    fn get_tile(&self, frame_cnt: usize) -> usize {
-        self.simple_item.get_tile(frame_cnt)
-    }
+    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
     fn enter(&mut self, _inventory: &mut Inventory, direction: Direction) -> Actions {
         Some(vec![Action::TeleportRobbo(self.group, self.position_in_group, direction)])
     }
-    fn get_kind(&self) -> Kind {self.simple_item.get_kind()}
-    fn get_flags(&self) -> u16 {self.simple_item.get_flags()}
     fn as_teleport(&self) -> Option<&Teleport> {
         Some(self)
     }
@@ -475,6 +470,7 @@ impl Bullet {
     }
 }
 impl Item for Bullet {
+    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
     fn get_tile(&self, frame_cnt: usize) -> usize {
         let (kx, _ky) = self.direction;
         self.simple_item.tiles[(if kx != 0 {0} else {2}) + (frame_cnt % 2)]
@@ -486,8 +482,6 @@ impl Item for Bullet {
             Some(vec![Action::DestroyBullet, Action::RelImpact(self.direction, false)])
         }
     }
-    fn get_kind(&self) -> Kind {self.simple_item.get_kind()}
-    fn get_flags(&self) -> u16 {self.simple_item.get_flags()}
 }
 
 pub struct PushBox {
@@ -500,9 +494,7 @@ impl PushBox {
     }
 }
 impl Item for PushBox {
-    fn get_tile(&self, frame_cnt: usize) -> usize {
-        self.simple_item.get_tile(frame_cnt)
-    }
+    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
     fn tick(&mut self, neighbours: &Neighbourhood) -> Actions {
         if self.direction != (0, 0) {
             if neighbours.is_empty(self.direction) {
@@ -519,8 +511,6 @@ impl Item for PushBox {
     fn moved(&mut self, direction: Direction) {
         self.direction = direction;
     }
-    fn get_kind(&self) -> Kind {self.simple_item.get_kind()}
-    fn get_flags(&self) -> u16 {self.simple_item.get_flags()}
 }
 
 pub struct LaserHead {
@@ -538,6 +528,7 @@ impl LaserHead {
     }
 }
 impl Item for LaserHead {
+    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
     fn get_tile(&self, frame_cnt: usize) -> usize {
         let (kx, _ky) = self.direction;
         self.simple_item.tiles[(if kx != 0 {0} else {2}) + (frame_cnt % 2)]
@@ -557,8 +548,6 @@ impl Item for LaserHead {
             }
         }
     }
-    fn get_kind(&self) -> Kind {self.simple_item.get_kind()}
-    fn get_flags(&self) -> u16 {self.simple_item.get_flags()}
 }
 
 pub struct BlastHead {
@@ -574,9 +563,7 @@ impl BlastHead {
     }
 }
 impl Item for BlastHead {
-    fn get_tile(&self, frame_cnt: usize) -> usize {
-        self.simple_item.get_tile(frame_cnt)
-    }
+    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
     fn tick(&mut self, neighbours: &Neighbourhood) -> Actions {
         if neighbours.is_empty(self.direction)
            || (neighbours.get_flags(self.direction) & DESTROYABLE) > 0
@@ -586,8 +573,6 @@ impl Item for BlastHead {
             Some(vec![Action::BlastHeadDestroy, Action::RelImpact(self.direction, false)])
         }
     }
-    fn get_kind(&self) -> Kind {self.simple_item.get_kind()}
-    fn get_flags(&self) -> Flags {self.simple_item.get_flags()}
 }
 /*
 pub struct Robbo {
@@ -634,44 +619,32 @@ pub struct Animation {
 }
 
 impl Animation {
-    pub fn small_explosion() -> Animation {
+    pub fn new(kind: Kind, tiles: &'static [usize], final_action: Action) -> Animation {
         Animation {
-            simple_item: SimpleItem::new(Kind::Explosion, &[52, 51, 50]).flags(UNDESTROYABLE),
+            simple_item: SimpleItem::new(kind, tiles).flags(UNDESTROYABLE),
             frame: 0,
-            final_action: Action::AutoRemove,
+            final_action,
         }
+    }
+    pub fn small_explosion() -> Animation {
+        Animation::new(Kind::Explosion, &[52, 51, 50], Action::AutoRemove)
     }
     pub fn spawn_robbo() -> Animation {
-        Animation {
-            simple_item: SimpleItem::new(Kind::Explosion, &[17, 18, 17, 18, 50, 51, 52]).flags(UNDESTROYABLE),
-            frame: 0,
-            final_action: Action::SpawnRobbo,
-        }
+        Animation::new(Kind::Explosion, &[17, 18, 17, 18, 50, 51, 52], Action::SpawnRobbo)
     }
     pub fn teleport_robbo() -> Animation {
-        Animation {
-            simple_item: SimpleItem::new(Kind::Explosion, &[50, 51, 52]).flags(UNDESTROYABLE),
-            frame: 0,
-            final_action: Action::SpawnRobbo,
-        }
+        Animation::new(Kind::Explosion, &[50, 51, 52], Action::SpawnRobbo)
     }
     pub fn question_mark_explosion() -> Animation {
-        Animation {
-            simple_item: SimpleItem::new(Kind::Explosion, &[50, 51, 52]).flags(UNDESTROYABLE),
-            frame: 0,
-            final_action: Action::SpawnRandomItem,
-        }
+        Animation::new(Kind::Explosion, &[50, 51, 52], Action::SpawnRandomItem)
     }
     pub fn blast_tail() -> Animation {
-        Animation {
-            simple_item: SimpleItem::new(Kind::Bullet, &[85, 86, 86, 86, 85, 84]).flags(UNDESTROYABLE),
-            frame: 0,
-            final_action: Action::AutoRemove,
-        }
+        Animation::new(Kind::Bullet, &[85, 86, 86, 86, 85, 84], Action::AutoRemove)
     }
 }
 
 impl Item for Animation {
+    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
     fn get_tile(&self, _frame_cnt: usize) -> usize {
         self.simple_item.tiles[self.frame]
     }
@@ -683,8 +656,6 @@ impl Item for Animation {
             Some(vec![self.final_action])
         }
     }
-    fn get_kind(&self) -> Kind {self.simple_item.get_kind()}
-    fn get_flags(&self) -> u16 {self.simple_item.get_flags()}
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -710,6 +681,7 @@ impl Bomb {
 }
 
 impl Item for Bomb {
+    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
     fn tick(&mut self, _neighbours: &Neighbourhood) -> Actions {
         match self.state {
             BombState::Ignited => {
@@ -742,10 +714,5 @@ impl Item for Bomb {
         }
         true
     }
-    fn get_tile(&self, frame_cnt: usize) -> usize {
-        self.simple_item.get_tile(frame_cnt)
-    }
-    fn get_kind(&self) -> Kind {self.simple_item.get_kind()}
-    fn get_flags(&self) -> u16 {self.simple_item.get_flags()}
 }
 
