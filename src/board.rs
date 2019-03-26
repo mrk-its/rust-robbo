@@ -11,7 +11,7 @@ use levels::Level;
 use crate::items::{
     Item, SimpleItem, Animation, Door, Teleport, Butterfly, Bear, Bird,
     LaserHead, BlastHead, Bullet, Bomb, Capsule, Gun, GunType, Magnet, PushBox,
-    ForceField,
+    ForceField, Robbo
 };
 
 #[derive(Debug)]
@@ -295,7 +295,7 @@ impl Board {
                             self.blaster_shot(pos, direction);
                         },
                         Action::SpawnRobbo => {
-                            self.replace(pos, Some(Box::new(SimpleItem::robbo())))
+                            self.replace(pos, Some(Box::new(Robbo::new())))
                         },
                         Action::SpawnRandomItem => {
                             // empty field, push box, screw, bullet, key, bomb, ground, butterfly, gun or another questionmark
@@ -622,9 +622,12 @@ impl Board {
 
     pub fn robbo_move_or_shot(&mut self, _pos: Position, direction: Direction, shot: bool) -> Actions {
         let robbo_pos = self.find_robbo();
-
         match robbo_pos {
             Some(pos) => {
+                {
+                    let mut robbo = self.get_mut_item(pos).unwrap().as_robbo().unwrap();
+                    robbo.set_direction(direction);
+                }
                 if shot {
                     if self.inventory.bullets > 0 {
                         self.inventory.bullets -= 1;

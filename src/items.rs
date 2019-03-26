@@ -33,9 +33,9 @@ pub trait Item {
     fn is_undestroyable(&self) -> bool {(self.get_flags() & UNDESTROYABLE) != 0}
     fn is_deadly(&self) -> bool {(self.get_flags() & DEADLY) != 0}
 
-    /*fn as_robbo(&mut self) -> Option<&mut Robbo> {
+    fn as_robbo(&mut self) -> Option<&mut Robbo> {
         None
-    }*/
+    }
     fn as_teleport(&self) -> Option<&Teleport> {
         None
     }
@@ -74,9 +74,6 @@ impl SimpleItem {
     }
     pub fn abox() -> SimpleItem {
         SimpleItem::new(Kind::ABox, &[20]).flags(MOVEABLE)
-    }
-    pub fn robbo() -> SimpleItem {
-        SimpleItem::new(Kind::Robbo, &[60, 61, 62, 63, 64, 65, 66, 67]).flags(DESTROYABLE)
     }
     pub fn horizontal_laser() -> SimpleItem {
         SimpleItem::new(Kind::HorizontalLaser, &[53])
@@ -574,44 +571,30 @@ impl Item for BlastHead {
         }
     }
 }
-/*
+
 pub struct Robbo {
     simple_item: SimpleItem,
     direction: Direction,
-    shot: bool,
 }
 impl Robbo {
-    pub fn new(direction: Direction) -> Robbo {
-        Robbo {shot: false, direction, simple_item: SimpleItem::new(Kind::Robbo, &[60, 61, 62, 63, 64, 65, 66, 67]).flags(DESTROYABLE)}
+    pub fn new() -> Robbo {
+        Robbo {direction: (0, 1), simple_item: SimpleItem::new(Kind::Robbo, &[60, 61, 62, 63, 64, 65, 66, 67]).flags(DESTROYABLE)}
     }
-    pub fn shot(&mut self, direction: Direction) {
+    pub fn set_direction(&mut self, direction: Direction) {
         self.direction = direction;
-        self.shot = true;
-    }
-    pub fn mv(&mut self, direction: Direction) {
-        self.direction = direction;
-        self.shot = false;
     }
 }
 impl Item for Robbo {
+    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
     fn get_tile(&self, frame_cnt: usize) -> usize {
-        self.simple_item.get_tile(frame_cnt)
+        let index = direction_to_index(self.direction) * 2;
+        self.simple_item.tiles[index + frame_cnt / 2 % 2]
     }
-    fn tick(&mut self, neighbours: &Neighbourhood) -> Actions {
-        if self.shot {
-            self.shot = false;
-            return Some(vec![Action::CreateBullet(self.direction)])
-        }
-        if neighbours.is_empty(self.direction) {
-            Some(vec![Action::RelMove(self.direction)])
-        } else {
-            Some(vec![Action::DestroyBullet, Action::RelImpact(self.direction, false)])
-        }
+    fn as_robbo(&mut self) -> Option<&mut Robbo> {
+        Some(self)
     }
-    fn get_kind(&self) -> Kind {self.simple_item.get_kind()}
-    fn get_flags(&self) -> u16 {self.simple_item.get_flags()}
 }
-*/
+
 pub struct Animation {
     simple_item: SimpleItem,
     frame: usize,
