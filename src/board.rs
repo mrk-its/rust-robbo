@@ -324,40 +324,39 @@ impl Board {
     }
 
     pub fn teleport_robbo(&mut self, group: u16, position_in_group: u16, direction: Direction) {
-        let dest_teleport_pos = {
-            let teleports = self.items.iter().enumerate().map(|(i, item)| match (i, item) {
-                (_, Some(it)) => (i, it.as_teleport()),
-                _ => (i, None)
-            }).filter(|(_, v)| {
-                v.is_some() && v.unwrap().group == group
-            }).collect::<Vec<(usize, Option<&Teleport>)>>();
-
-            teleports.iter().find(
-                |(_, v)| ((v.unwrap().position_in_group as usize % teleports.len()) == ((position_in_group + 1) as usize) % teleports.len())
-            ).map(
-                |(i, v)| ((*i as i32 % self.width, *i as i32 / self.width), v.unwrap())
-            ).map(|(pos, _)| pos)
-        };
-        let robbo_pos = self.find_robbo();
-
-        match (dest_teleport_pos, robbo_pos) {
-            (Some(teleport_pos), Some(robbo_pos)) => {
-                let mut dir = direction;
-                let cc = dir.0 != 0; // hack for level 16
-                for _ in 0..4 {
-                    let dest_robbo_pos = dest_coords(teleport_pos, dir);
-                    if self.is_empty(dest_robbo_pos) {
-                        self.destroy(robbo_pos, true);
-                        self.replace(dest_robbo_pos, Some(Box::new(Animation::teleport_robbo())));
-                        break;
-                    }
-
-                    dir = if cc {rotate_counter_clockwise(dir)} else {rotate_clockwise(dir)}
+        let robbo_pos = self.find_robbo().unwrap();
+        let dest_teleport_positions = {
+            let mut teleports = {
+                self.items.iter().enumerate().map(|(i, item)| match (i, item) {
+                    (_, Some(it)) => (i, it.as_teleport()),
+                    _ => (i, None)
+                }).filter(|(_, v)| {
+                    v.is_some() && v.unwrap().group == group
+                }).collect::<Vec<(usize, Option<&Teleport>)>>()
+            };
+            teleports.sort_by_key(|&(_, t)| t.unwrap().position_in_group);
+            let len = teleports.len();
+            let index = teleports.iter().enumerate().find(
+                |(_, (_, v))| {
+                    (v.unwrap().position_in_group as usize % len) == (position_in_group as usize % len)
                 }
-
-            },
-            _ => {}
-        }
+            ).map(|(i, _)| i).unwrap();
+            teleports.rotate_left(index + 1);
+            teleports.iter().map(|(i, v)| (*i as i32 % self.width, *i as i32 / self.width)).collect::<Vec<Position>>()
+        };
+        for teleport_pos in dest_teleport_positions {
+            let mut dir = direction;
+            let cc = dir.0 != 0; // hack for level 16
+            for _ in 0..4 {
+                let dest_robbo_pos = dest_coords(teleport_pos, dir);
+                if self.is_empty(dest_robbo_pos) {
+                    self.destroy(robbo_pos, true);
+                    self.replace(dest_robbo_pos, Some(Box::new(Animation::teleport_robbo())));
+                    return;
+                }
+                dir = if cc {rotate_counter_clockwise(dir)} else {rotate_clockwise(dir)}
+            }
+        };
     }
 
     pub fn tick(&mut self) {
