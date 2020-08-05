@@ -29,10 +29,87 @@
       </style>
   </head>
   <body>
-      <canvas id="robbo-canvas" width="1" height="1"></canvas>
-      <canvas id="offscreen-canvas" width="512" height="512" style="display: none"></canvas>
-      <h1 id="inventory"></p>
-      <script src="./bootstrap.js"></script>
-      <div id="fps"></div>
+    <script type="module">
+      import init, {Universe} from './pkg/rust_robbo.js';
+
+      function loadImage(src) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.addEventListener("load", () => resolve(img));
+          img.addEventListener("error", err => reject(err));
+          img.src = src;
+        });
+      }
+
+      function get_image_data(image) {
+          var canvas = document.getElementById('offscreen-canvas');
+          var context = canvas.getContext('2d')
+          context.fillStyle = '#608050'
+          context.fillRect(0, 0, image.width, image.height)
+          context.drawImage(image, 0, 0 )
+          return context.getImageData(0, 0, image.width, image.height)
+      }
+
+      function get_current_level() {
+        return localStorage.current_level && parseInt(localStorage.current_level) || 0
+      }
+
+      function get_current_levelset() {
+        return localStorage.current_levelset && parseInt(localStorage.current_levelset) || 0
+      }
+
+      function store_current_level(levelset, level) {
+        localStorage.current_levelset = levelset
+        localStorage.current_level = level
+      }
+
+      function run_robbo(skin_image) {
+        const image_data = get_image_data(skin_image);
+        console.log(get_current_levelset(), get_current_level())
+        const universe = Universe.new(image_data, get_current_levelset(), get_current_level())
+        const inventory = document.getElementById("inventory")
+        const canvas = document.getElementById("robbo-canvas")
+        let ctx = canvas.getContext('2d');
+        function renderLoop() {
+          if(canvas.width != universe.width() || canvas.height != universe.height()) {
+            canvas.width = universe.width()
+            canvas.height = universe.height()
+            ctx = canvas.getContext('2d');
+          }
+          let current_level = universe.get_current_level()
+          let current_levelset = universe.get_current_levelset()
+          if(current_level != get_current_level() || current_levelset != get_current_levelset()) {
+            store_current_level(current_levelset, current_level);
+          }
+          universe.draw(ctx);
+          inventory.textContent = universe.get_inventory();
+          requestAnimationFrame(renderLoop);
+        };
+        requestAnimationFrame(renderLoop);
+        function key_handler(event) {
+          var handled = universe.on_keyboard_event(event, event.type == "keydown");
+          if(handled) {
+            event.preventDefault();
+          }
+        }
+        document.addEventListener('keydown', key_handler);
+        document.addEventListener('keyup', key_handler);
+        universe.draw(ctx);
+      }
+
+      async function run() {
+        await init();
+        let skin_image = await loadImage('data/skins/original/icons32.png');
+        run_robbo(skin_image);
+      }
+
+      run();
+
+    </script>
+
+    <canvas id="robbo-canvas" width="1" height="1"></canvas>
+    <canvas id="offscreen-canvas" width="512" height="512" style="display: none"></canvas>
+    <h1 id="inventory"></p>
+    <div id="fps"></div>
   </body>
 </html>
