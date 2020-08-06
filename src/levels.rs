@@ -50,7 +50,7 @@ impl LevelSet {
                     let cnt = lines.next().unwrap().parse::<usize>().unwrap();
                     for _ in 0..cnt {
                         let line = lines.next().unwrap();
-                        let mut parts = line.split('.').collect::<Vec<&str>>();
+                        let parts = line.split('.').collect::<Vec<&str>>();
                         let x = parts[0].parse::<usize>().unwrap();
                         let y = parts[1].parse::<usize>().unwrap();
                         let c = parts[2].chars().next().unwrap();

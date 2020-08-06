@@ -77,7 +77,7 @@ impl Inventory {
 pub struct Board {
     pub width: i32,
     pub height: i32,
-    items: Vec<Option<Box<Item>>>,
+    items: Vec<Option<Box<dyn Item>>>,
     pub missing_screws: usize,
     pub robbo_moving_dir: Option<Direction>,
     pub robbo_shooting_dir: Option<Direction>,
@@ -89,7 +89,7 @@ pub struct Board {
 
 impl Board {
     pub fn from(level: &Level) -> Board {
-        let mut items: Vec<Option<Box<Item>>> = Vec::new();
+        let mut items: Vec<Option<Box<dyn Item>>> = Vec::new();
         let mut missing_screws = 0;
         random::seed(2);
         for (y, row) in level.tiles.iter().enumerate() {
@@ -97,7 +97,7 @@ impl Board {
                 let additional = level.additional.get(&(x, y)).map(
                     |v| &v[..]
                 );
-                let tile: Option<Box<Item>> = match c {
+                let tile: Option<Box<dyn Item>> = match c {
                     'O' => Some(Box::new(SimpleItem::wall(&[2]))),
                     'o' => Some(Box::new(SimpleItem::wall(&[29]))),
                     '-' => Some(Box::new(SimpleItem::wall(&[19]))),
@@ -191,7 +191,7 @@ impl Board {
         x >= 0 && x < self.width && y >=0 && y < self.height
     }
 
-    pub fn get_item(&self, (x, y): Position) -> &Option<Box<Item>> {
+    pub fn get_item(&self, (x, y): Position) -> &Option<Box<dyn Item>> {
         if self.is_pos_valid((x, y)) {
             &self.items[(y * self.width + x) as usize]
         } else {
@@ -199,7 +199,7 @@ impl Board {
         }
     }
 
-    pub fn get_mut_item(&mut self, (x, y): Position) -> Option<&mut Box<Item>> {
+    pub fn get_mut_item(&mut self, (x, y): Position) -> Option<&mut Box<dyn Item>> {
         self.items[(y * self.width + x) as usize].as_mut()
     }
 
@@ -229,7 +229,7 @@ impl Board {
         self.items.swap((y * self.width + x) as usize, (dy * self.width + dx) as usize);
     }
 
-    pub fn replace(&mut self, (x, y): Position, item: Option<Box<Item>>) {
+    pub fn replace(&mut self, (x, y): Position, item: Option<Box<dyn Item>>) {
         self.items[(y * self.width + x) as usize] = item;
     }
 
@@ -299,7 +299,7 @@ impl Board {
                         },
                         Action::SpawnRandomItem => {
                             // empty field, push box, screw, bullet, key, bomb, ground, butterfly, gun or another questionmark
-                            let item:Box<Item> = match random::randrange(10) {
+                            let item:Box<dyn Item> = match random::randrange(10) {
                                 1 => Box::new(PushBox::new()),
                                 2 => Box::new(SimpleItem::screw()),
                                 3 => Box::new(SimpleItem::bullets()),
@@ -342,7 +342,7 @@ impl Board {
                 }
             ).map(|(i, _)| i).unwrap();
             teleports.rotate_left(index + 1);
-            teleports.iter().map(|(i, v)| (*i as i32 % self.width, *i as i32 / self.width)).collect::<Vec<Position>>()
+            teleports.iter().map(|(i, _)| (*i as i32 % self.width, *i as i32 / self.width)).collect::<Vec<Position>>()
         };
         for teleport_pos in dest_teleport_positions {
             let mut dir = direction;
@@ -594,7 +594,7 @@ impl Board {
         let dest = dest_coords(pos, direction);
         let is_dst_empty = self.is_empty(dest);
         if is_dst_empty {
-            let bullet:Option<Box<Item>> = match gun_type {
+            let bullet:Option<Box<dyn Item>> = match gun_type {
                 GunType::Burst => Some(Box::new(Bullet::new(direction))),
                 GunType::Solid => Some(Box::new(LaserHead::new(direction))),
                 GunType::Blaster => Some(Box::new(BlastHead::new(direction))),
@@ -624,7 +624,7 @@ impl Board {
         match robbo_pos {
             Some(pos) => {
                 {
-                    let mut robbo = self.get_mut_item(pos).unwrap().as_robbo().unwrap();
+                    let robbo = self.get_mut_item(pos).unwrap().as_robbo().unwrap();
                     robbo.set_direction(direction);
                 }
                 if shot {

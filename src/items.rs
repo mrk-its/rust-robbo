@@ -378,7 +378,7 @@ impl Item for Bear {
     fn tick(&mut self, neighbours: &Neighbourhood) -> Actions {
         let mut actions = vec![];
 
-        type RotateFn = Fn(Direction) -> Direction;
+        type RotateFn = dyn Fn(Direction) -> Direction;
         let (r1, r2):(&RotateFn, &RotateFn) = if self.simple_item.get_kind() == Kind::Bear {
             (&rotate_counter_clockwise, &rotate_clockwise)
         } else {

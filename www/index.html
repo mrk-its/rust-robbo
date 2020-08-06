@@ -32,6 +32,53 @@
     <script type="module">
       import init, {Universe} from './pkg/rust_robbo.js';
 
+      let is_rotated = true;
+
+      var tile_map = [
+        [36, 38], // bullet / laser
+        [37, 39],
+
+        [60, 62], // robbo
+        [61, 63],
+        [62, 64],
+        [63, 65],
+        [64, 66],
+        [65, 67],
+        [66, 60],
+        [67, 61],
+
+        [53, 54], // gun
+        [54, 55],
+        [55, 56],
+        [56, 53],
+
+        [1, 72],  //
+        [0, 73],
+
+        [89, 90],
+      ]
+      tile_map = tile_map.concat(tile_map.map(function(i) {return [i[1], i[0]]})).reduce((o, item) => ({ ...o, [item[0]]: item[1]}), {})
+
+      function draw_tile(ctx, skin_image_data, n, dx, dy) {
+        if(is_rotated) {
+          [dx, dy] = [dy, 15 - dx];
+          n = n in tile_map ? tile_map[n] : n;
+        }
+        let sx = n % 12;
+        let sy = Math.floor(n / 12);
+        let dirtyx = (sx * 34 + 2);
+        let dirtyy = (sy * 34 + 2);
+        ctx.putImageData(
+          skin_image_data,
+          (dx * 32) - dirtyx,
+          (dy * 32) - dirtyy,
+          dirtyx,
+          dirtyy,
+          32.0,
+          32.0
+        )
+    }
+
       function loadImage(src) {
         return new Promise((resolve, reject) => {
           const img = new Image();
@@ -63,38 +110,104 @@
         localStorage.current_level = level
       }
 
+      function draw(universe, ctx, skin_image_data, frame_cnt) {
+        for(var y=0; y < universe.get_board_height(); y++) {
+          for(var x=0; x < universe.get_board_width(); x++) {
+            let tile = universe.get_tile(x, y, Math.floor(frame_cnt / 8));
+            draw_tile(ctx, skin_image_data, tile, x, y);
+          }
+        }
+      }
+      function canvas_width(universe) {
+        return (!is_rotated  ? universe.get_board_width() : universe.get_board_height()) * 32
+      }
+      function canvas_height(universe) {
+        return (!is_rotated  ? universe.get_board_height() : universe.get_board_width()) * 32
+      }
+
       function run_robbo(skin_image) {
+        var frame_cnt = 0;
         const image_data = get_image_data(skin_image);
-        console.log(get_current_levelset(), get_current_level())
-        const universe = Universe.new(image_data, get_current_levelset(), get_current_level())
+        const universe = Universe.new(get_current_levelset(), get_current_level())
         const inventory = document.getElementById("inventory")
         const canvas = document.getElementById("robbo-canvas")
         let ctx = canvas.getContext('2d');
         function renderLoop() {
-          if(canvas.width != universe.width() || canvas.height != universe.height()) {
-            canvas.width = universe.width()
-            canvas.height = universe.height()
-            ctx = canvas.getContext('2d');
-          }
-          let current_level = universe.get_current_level()
-          let current_levelset = universe.get_current_levelset()
-          if(current_level != get_current_level() || current_levelset != get_current_levelset()) {
-            store_current_level(current_levelset, current_level);
-          }
-          universe.draw(ctx);
-          inventory.textContent = universe.get_inventory();
-          requestAnimationFrame(renderLoop);
+            frame_cnt = frame_cnt + 1
+            if((frame_cnt % 8) == 0) {
+                if(canvas.width != canvas_width(universe) || canvas.height != canvas_height(universe)) {
+                    canvas.width = canvas_width(universe);
+                    canvas.height = canvas_height(universe);
+                    ctx = canvas.getContext('2d');
+                }
+                let current_level = universe.get_current_level()
+                let current_levelset = universe.get_current_levelset()
+                if(current_level != get_current_level() || current_levelset != get_current_levelset()) {
+                  store_current_level(current_levelset, current_level);
+                }
+                universe.tick();
+                draw(universe, ctx, image_data, frame_cnt);
+                inventory.textContent = universe.get_inventory();
+            }
+            requestAnimationFrame(renderLoop);
         };
         requestAnimationFrame(renderLoop);
+        var last_chars = "";
+        var move_x = 0;
+        var move_y = 0;
+
+        function handle_event(event) {
+          let is_shift = event.shiftKey;
+          let is_keydown = event.type == "keydown";
+
+          let kx = (event.code == "ArrowRight") - (event.code == "ArrowLeft");
+          let ky = (event.code == "ArrowDown") - (event.code == "ArrowUp");
+
+          if(is_rotated) {
+            [kx, ky] = [-ky, kx]
+          }
+
+          if(!is_shift && kx) {
+            move_x = is_keydown ? kx : 0;
+            universe.robbo_move(move_x, move_y);
+            return true;
+          } else if (!is_shift && ky) {
+            move_y = is_keydown ? ky : 0;
+            universe.robbo_move(move_x, move_y);
+            return true;
+          } else if(is_keydown) {
+            if(is_shift && (kx || ky)) {
+              universe.robbo_shot(kx, ky);
+              return true;
+            } else if(event.code == "Escape") {
+              universe.kill_robbo();
+              return true;
+            } else if(event.code == "BracketLeft") {
+              universe.prev_level(is_shift);
+              return true;
+            } else if(event.code == "BracketRight") {
+              universe.next_level(is_shift);
+              return true;
+            } else {
+              last_chars = (event.key + last_chars).substring(0, 3);
+              if(last_chars == "alo") {
+                universe.toggle_god_mode();
+                return true;
+              }
+            }
+          }
+          return false;
+        }
+
         function key_handler(event) {
-          var handled = universe.on_keyboard_event(event, event.type == "keydown");
+          var handled = handle_event(event);
           if(handled) {
             event.preventDefault();
           }
         }
         document.addEventListener('keydown', key_handler);
         document.addEventListener('keyup', key_handler);
-        universe.draw(ctx);
+        draw(universe, ctx, image_data, frame_cnt);
       }
 
       async function run() {
