@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use log::log;
+use std::collections::HashMap;
 
 type AdditionalMap = HashMap<(usize, usize), Vec<u16>>;
 
@@ -10,7 +10,7 @@ pub struct LevelSet {
 
 impl LevelSet {
     pub fn parse(data: &str) -> LevelSet {
-        let mut levels:Vec<Level> = Vec::new();
+        let mut levels: Vec<Level> = Vec::new();
         let mut level_set_name: Option<&str> = None;
         let mut default_level_color: String = String::from("000000");
         let mut collecting_data: bool = false;
@@ -26,26 +26,28 @@ impl LevelSet {
                 collecting_data = false;
             }
             match line {
-                "[level]" => {
-                    current_level.number = lines.next().unwrap().parse().unwrap()
-                },
+                "[level]" => current_level.number = lines.next().unwrap().parse().unwrap(),
                 "[name]" => {
                     level_set_name = Some(lines.next().unwrap());
-                },
+                }
                 "[colour]" => {
                     current_level.color = String::from(lines.next().unwrap());
-                },
+                }
                 "[default_level_colour]" => {
                     default_level_color = String::from(lines.next().unwrap());
-                },
+                }
                 "[size]" => {
-                    let mut it = lines.next().unwrap().split('.').map(|v| v.parse::<i32>().unwrap());
+                    let mut it = lines
+                        .next()
+                        .unwrap()
+                        .split('.')
+                        .map(|v| v.parse::<i32>().unwrap());
                     current_level.width = it.next().unwrap();
                     current_level.height = it.next().unwrap();
-                },
+                }
                 "[data]" => {
                     collecting_data = true;
-                },
+                }
                 "[additional]" => {
                     let cnt = lines.next().unwrap().parse::<usize>().unwrap();
                     for _ in 0..cnt {
@@ -55,26 +57,37 @@ impl LevelSet {
                         let y = parts[1].parse::<usize>().unwrap();
                         let c = parts[2].chars().next().unwrap();
                         if c != current_level.tiles[y].chars().nth(x).unwrap() {
-                            log!("level:{} additional data mismatch: {}.{}.{}", current_level.number, x, y, c);
+                            log!(
+                                "level:{} additional data mismatch: {}.{}.{}",
+                                current_level.number,
+                                x,
+                                y,
+                                c
+                            );
                         };
-                        let params = parts[3..].iter().map(|v| v.parse::<u16>().unwrap()).collect::<Vec<u16>>();
+                        let params = parts[3..]
+                            .iter()
+                            .map(|v| v.parse::<u16>().unwrap())
+                            .collect::<Vec<u16>>();
                         current_level.additional.insert((x, y), params);
                     }
-                },
+                }
                 "[end]" => {
                     if current_level.color.len() == 0 {
                         current_level.color = default_level_color.clone();
                     }
                     levels.push(current_level);
                     current_level = Level::new();
-                },
-                _ => if collecting_data {
-                    current_level.tiles.push(String::from(line));
+                }
+                _ => {
+                    if collecting_data {
+                        current_level.tiles.push(String::from(line));
+                    }
                 }
             }
         }
 
-        LevelSet{
+        LevelSet {
             name: String::from(level_set_name.unwrap()),
             levels: levels,
         }
@@ -106,4 +119,3 @@ impl Level {
         }
     }
 }
-

@@ -2,16 +2,17 @@ use std::collections::HashSet;
 
 use crate::random;
 
-use log::log;
-use consts::{DEADLY};
-use types::{Kind, Flags, Action, Actions, Direction, Position};
-use utils::{direction_to_index, direction_by_index, rotate_clockwise, rotate_counter_clockwise, dest_coords};
+use consts::DEADLY;
 use levels::Level;
+use log::log;
+use types::{Action, Actions, Direction, Flags, Kind, Position};
+use utils::{
+    dest_coords, direction_by_index, direction_to_index, rotate_clockwise, rotate_counter_clockwise,
+};
 
 use crate::items::{
-    Item, SimpleItem, Animation, Door, Teleport, Butterfly, Bear, Bird,
-    LaserHead, BlastHead, Bullet, Bomb, Capsule, Gun, GunType, Magnet, PushBox,
-    ForceField, Robbo
+    Animation, Bear, Bird, BlastHead, Bomb, Bullet, Butterfly, Capsule, Door, ForceField, Gun,
+    GunType, Item, LaserHead, Magnet, PushBox, Robbo, SimpleItem, Teleport,
 };
 
 #[derive(Debug)]
@@ -23,7 +24,7 @@ pub struct Inventory {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Neighbourhood {
-    neighbours: [(Kind, Flags);4],
+    neighbours: [(Kind, Flags); 4],
     robbo_dir: Option<Direction>,
     magnetic_force_dir: Option<Direction>,
 }
@@ -45,9 +46,7 @@ impl Neighbourhood {
         self.get_kind(direction) == Kind::Empty
     }
     pub fn is_deadly(&self) -> bool {
-        self.neighbours.iter().any(
-            |(_, flags)| flags & DEADLY > 0
-        )
+        self.neighbours.iter().any(|(_, flags)| flags & DEADLY > 0)
     }
 }
 
@@ -73,7 +72,6 @@ impl Inventory {
     }
 }
 
-
 pub struct Board {
     pub width: i32,
     pub height: i32,
@@ -94,9 +92,7 @@ impl Board {
         random::seed(2);
         for (y, row) in level.tiles.iter().enumerate() {
             for (x, c) in row.chars().enumerate() {
-                let additional = level.additional.get(&(x, y)).map(
-                    |v| &v[..]
-                );
+                let additional = level.additional.get(&(x, y)).map(|v| &v[..]);
                 let tile: Option<Box<dyn Item>> = match c {
                     'O' => Some(Box::new(SimpleItem::wall(&[2]))),
                     'o' => Some(Box::new(SimpleItem::wall(&[29]))),
@@ -111,7 +107,7 @@ impl Board {
                     'T' => {
                         missing_screws += 1;
                         Some(Box::new(SimpleItem::screw()))
-                    },
+                    }
                     '\'' => Some(Box::new(SimpleItem::bullets())),
                     '%' => Some(Box::new(SimpleItem::key())),
                     'D' => Some(Box::new(Door::new())),
@@ -123,10 +119,20 @@ impl Board {
                     'b' => Some(Box::new(Bomb::new())),
                     '?' => Some(Box::new(SimpleItem::questionmark())),
                     'V' => Some(Box::new(Butterfly::new())),
-                    '@' => Some(Box::new(Bear::new(Kind::Bear, additional.unwrap_or(&[0]), &[13, 14]))),
-                    '*' => Some(Box::new(Bear::new(Kind::BlackBear, additional.unwrap_or(&[0]), &[30, 31]))),
+                    '@' => Some(Box::new(Bear::new(
+                        Kind::Bear,
+                        additional.unwrap_or(&[0]),
+                        &[13, 14],
+                    ))),
+                    '*' => Some(Box::new(Bear::new(
+                        Kind::BlackBear,
+                        additional.unwrap_or(&[0]),
+                        &[30, 31],
+                    ))),
                     '^' => Some(Box::new(Bird::new(additional.unwrap_or(&[0, 0, 0])))),
-                    '}' => Some(Box::new(Gun::new(additional.unwrap_or(&[0, 0, 0, 0, 0, 0])))),
+                    '}' => Some(Box::new(Gun::new(
+                        additional.unwrap_or(&[0, 0, 0, 0, 0, 0]),
+                    ))),
                     'L' => Some(Box::new(SimpleItem::horizontal_laser())),
                     'l' => Some(Box::new(SimpleItem::vertical_laser())),
                     'M' => Some(Box::new(Magnet::new(additional.unwrap_or(&[0])))),
@@ -135,8 +141,8 @@ impl Board {
                 };
                 items.push(tile);
             }
-        };
-        let mut board = Board{
+        }
+        let mut board = Board {
             width: level.width,
             height: level.height,
             items,
@@ -154,21 +160,27 @@ impl Board {
         board
     }
 
-    pub fn get_neighbourhood(&self, (x, y): Position, robbo_pos: Option<Position>) -> Neighbourhood {
-        let up = self.get_kind_and_flags((x, y-1));
-        let down = self.get_kind_and_flags((x, y+1));
-        let left = self.get_kind_and_flags((x-1, y));
-        let right = self.get_kind_and_flags((x+1, y));
+    pub fn get_neighbourhood(
+        &self,
+        (x, y): Position,
+        robbo_pos: Option<Position>,
+    ) -> Neighbourhood {
+        let up = self.get_kind_and_flags((x, y - 1));
+        let down = self.get_kind_and_flags((x, y + 1));
+        let left = self.get_kind_and_flags((x - 1, y));
+        let right = self.get_kind_and_flags((x + 1, y));
 
         let magnetic_force_dir = robbo_pos.map_or(None, |robbo_pos| {
-            (0..4).map(direction_by_index).map(
-                |dir| self.get_magnetic_force_dir(robbo_pos, dir)
-            ).find(|dir| dir.is_some()).unwrap_or(None)
+            (0..4)
+                .map(direction_by_index)
+                .map(|dir| self.get_magnetic_force_dir(robbo_pos, dir))
+                .find(|dir| dir.is_some())
+                .unwrap_or(None)
         });
 
-        let robbo_dir = robbo_pos.map(
-            |(robbo_x, robbo_y)| ((robbo_x as i32) - (x as i32), (robbo_y as i32) - (y as i32))
-        );
+        let robbo_dir = robbo_pos.map(|(robbo_x, robbo_y)| {
+            ((robbo_x as i32) - (x as i32), (robbo_y as i32) - (y as i32))
+        });
 
         Neighbourhood {
             neighbours: [right, down, left, up],
@@ -181,14 +193,16 @@ impl Board {
         let mut pos = dest_coords(robbo_pos, dir);
         while self.is_empty(pos) {
             pos = dest_coords(pos, dir);
-        };
-        self.get_item(pos).as_ref().map_or(None, |item| item.as_magnet()).filter(
-            |magnet| magnet.get_magnetic_force_dir() == dir
-        ).map(|_magnet| dir)
+        }
+        self.get_item(pos)
+            .as_ref()
+            .map_or(None, |item| item.as_magnet())
+            .filter(|magnet| magnet.get_magnetic_force_dir() == dir)
+            .map(|_magnet| dir)
     }
 
     pub fn is_pos_valid(&self, (x, y): Position) -> bool {
-        x >= 0 && x < self.width && y >=0 && y < self.height
+        x >= 0 && x < self.width && y >= 0 && y < self.height
     }
 
     pub fn get_item(&self, (x, y): Position) -> &Option<Box<dyn Item>> {
@@ -205,16 +219,20 @@ impl Board {
 
     pub fn get_kind(&self, pos: Position) -> Kind {
         if !self.is_pos_valid(pos) {
-            return Kind::Wall
+            return Kind::Wall;
         }
-        self.get_item(pos).as_ref().map_or(Kind::Empty, |item| item.get_kind())
+        self.get_item(pos)
+            .as_ref()
+            .map_or(Kind::Empty, |item| item.get_kind())
     }
 
     pub fn get_kind_and_flags(&self, pos: Position) -> (Kind, Flags) {
         if !self.is_pos_valid(pos) {
-            return (Kind::Wall, 0)
+            return (Kind::Wall, 0);
         }
-        self.get_item(pos).as_ref().map_or((Kind::Empty, 0), |item| (item.get_kind(), item.get_flags()))
+        self.get_item(pos)
+            .as_ref()
+            .map_or((Kind::Empty, 0), |item| (item.get_kind(), item.get_flags()))
     }
 
     pub fn is_empty(&self, (x, y): Position) -> bool {
@@ -222,11 +240,16 @@ impl Board {
     }
 
     pub fn get_tile(&self, pos: Position, frame_cnt: usize) -> usize {
-        self.get_item(pos).as_ref().map_or(95, |item| item.get_tile(frame_cnt))
+        self.get_item(pos)
+            .as_ref()
+            .map_or(95, |item| item.get_tile(frame_cnt))
     }
 
     pub fn swap(&mut self, (x, y): Position, (dx, dy): Position) {
-        self.items.swap((y * self.width + x) as usize, (dy * self.width + dx) as usize);
+        self.items.swap(
+            (y * self.width + x) as usize,
+            (dy * self.width + dx) as usize,
+        );
     }
 
     pub fn replace(&mut self, (x, y): Position, item: Option<Box<dyn Item>>) {
@@ -242,15 +265,20 @@ impl Board {
             for x in 0..self.width {
                 let pos = (x, y);
                 let kind = self.get_kind(pos);
-                if kind == Kind::Butterfly || kind == Kind::Bear || kind == Kind::BlackBear || kind == Kind::Bird{
+                if kind == Kind::Butterfly
+                    || kind == Kind::Bear
+                    || kind == Kind::BlackBear
+                    || kind == Kind::Bird
+                {
                     self.destroy(pos, true);
                 } else if kind == Kind::Gun {
                     match self.get_mut_item(pos) {
-                        Some(item) => item.as_gun().unwrap().disabled = !item.as_gun().unwrap().disabled,
+                        Some(item) => {
+                            item.as_gun().unwrap().disabled = !item.as_gun().unwrap().disabled
+                        }
                         None => (),
                     }
                 }
-
             }
         }
     }
@@ -261,45 +289,43 @@ impl Board {
                     match action {
                         Action::RelMove(direction) => {
                             self.move_if_empty(pos, direction);
-                        },
+                        }
                         Action::LaserHeadMove(direction) => {
                             self.laser_move(pos, direction);
-                        },
+                        }
                         Action::BlastHeadMove(direction) => {
                             self.blast_move(pos, direction);
-                        },
+                        }
                         Action::BlastHeadDestroy => {
                             self.replace(pos, Some(Box::new(Animation::blast_tail())))
-                        },
+                        }
                         Action::AutoRemove => {
                             self.remove(pos);
-                        },
+                        }
                         Action::NextLevel => {
                             self.finished = true;
-                        },
+                        }
                         Action::DestroyBullet => {
                             self.replace(pos, Some(Box::new(Animation::small_explosion())));
-                        },
+                        }
                         Action::RelImpact(direction, force) => {
                             let dest = dest_coords(pos, direction);
                             self.destroy(dest, force);
                             self.mark_as_processed(dest);
-                        },
+                        }
                         Action::CreateBullet(direction) => {
                             self.shot(pos, direction);
-                        },
+                        }
                         Action::CreateLaser(direction) => {
                             self.laser_shot(pos, direction);
-                        },
+                        }
                         Action::CreateBlast(direction) => {
                             self.blaster_shot(pos, direction);
-                        },
-                        Action::SpawnRobbo => {
-                            self.replace(pos, Some(Box::new(Robbo::new())))
-                        },
+                        }
+                        Action::SpawnRobbo => self.replace(pos, Some(Box::new(Robbo::new()))),
                         Action::SpawnRandomItem => {
                             // empty field, push box, screw, bullet, key, bomb, ground, butterfly, gun or another questionmark
-                            let item:Box<dyn Item> = match random::randrange(10) {
+                            let item: Box<dyn Item> = match random::randrange(10) {
                                 1 => Box::new(PushBox::new()),
                                 2 => Box::new(SimpleItem::screw()),
                                 3 => Box::new(SimpleItem::bullets()),
@@ -312,13 +338,13 @@ impl Board {
                                 _ => Box::new(Animation::small_explosion()),
                             };
                             self.replace(pos, Some(item))
-                        },
+                        }
                         Action::TeleportRobbo(group, position_in_group, direction) => {
                             self.teleport_robbo(group, position_in_group, direction);
-                        },
+                        }
                     }
                 }
-            },
+            }
             None => (),
         }
     }
@@ -327,22 +353,32 @@ impl Board {
         let robbo_pos = self.find_robbo().unwrap();
         let dest_teleport_positions = {
             let mut teleports = {
-                self.items.iter().enumerate().map(|(i, item)| match (i, item) {
-                    (_, Some(it)) => (i, it.as_teleport()),
-                    _ => (i, None)
-                }).filter(|(_, v)| {
-                    v.is_some() && v.unwrap().group == group
-                }).collect::<Vec<(usize, Option<&Teleport>)>>()
+                self.items
+                    .iter()
+                    .enumerate()
+                    .map(|(i, item)| match (i, item) {
+                        (_, Some(it)) => (i, it.as_teleport()),
+                        _ => (i, None),
+                    })
+                    .filter(|(_, v)| v.is_some() && v.unwrap().group == group)
+                    .collect::<Vec<(usize, Option<&Teleport>)>>()
             };
             teleports.sort_by_key(|&(_, t)| t.unwrap().position_in_group);
             let len = teleports.len();
-            let index = teleports.iter().enumerate().find(
-                |(_, (_, v))| {
-                    (v.unwrap().position_in_group as usize % len) == (position_in_group as usize % len)
-                }
-            ).map(|(i, _)| i).unwrap();
+            let index = teleports
+                .iter()
+                .enumerate()
+                .find(|(_, (_, v))| {
+                    (v.unwrap().position_in_group as usize % len)
+                        == (position_in_group as usize % len)
+                })
+                .map(|(i, _)| i)
+                .unwrap();
             teleports.rotate_left(index + 1);
-            teleports.iter().map(|(i, _)| (*i as i32 % self.width, *i as i32 / self.width)).collect::<Vec<Position>>()
+            teleports
+                .iter()
+                .map(|(i, _)| (*i as i32 % self.width, *i as i32 / self.width))
+                .collect::<Vec<Position>>()
         };
         for teleport_pos in dest_teleport_positions {
             let mut dir = direction;
@@ -354,9 +390,13 @@ impl Board {
                     self.replace(dest_robbo_pos, Some(Box::new(Animation::teleport_robbo())));
                     return;
                 }
-                dir = if cc {rotate_counter_clockwise(dir)} else {rotate_clockwise(dir)}
+                dir = if cc {
+                    rotate_counter_clockwise(dir)
+                } else {
+                    rotate_clockwise(dir)
+                }
             }
-        };
+        }
     }
 
     pub fn tick(&mut self) {
@@ -371,7 +411,7 @@ impl Board {
                         if self.get_kind(dest_coords(pos, dir)) == Kind::Magnet {
                             self.destroy(pos, false)
                         }
-                    },
+                    }
                     None => {
                         if neighbours.is_deadly() {
                             self.destroy(pos, false);
@@ -380,23 +420,24 @@ impl Board {
                                 (Some(direction), _) => {
                                     self.robbo_shooting_dir = None;
                                     self.robbo_move_or_shot(pos, direction, true)
-                                },
-                                (_, Some(direction)) => self.robbo_move_or_shot(pos, direction, false),
+                                }
+                                (_, Some(direction)) => {
+                                    self.robbo_move_or_shot(pos, direction, false)
+                                }
                                 _ => None,
                             };
                             self.dispatch_actions(actions, pos);
                         }
-
                     }
                 }
                 self.missing_robbo_ticks = 0;
-            },
+            }
             None => {
                 self.missing_robbo_ticks += 1;
                 if self.missing_robbo_ticks == 8 {
                     self.explode_all();
                 }
-            },
+            }
         }
         for y in 0..self.height {
             let mut skip_to = 0;
@@ -414,9 +455,7 @@ impl Board {
                 let neighbours = self.get_neighbourhood(pos, robbo_pos);
                 let actions = {
                     match self.get_mut_item(pos) {
-                        Some(it) => {
-                            it.tick(&neighbours)
-                        },
+                        Some(it) => it.tick(&neighbours),
                         None => None,
                     }
                 };
@@ -434,11 +473,17 @@ impl Board {
         while self.get_kind((wall_x2, y)) != Kind::Wall {
             wall_x2 += 1;
         }
-        let ff_dir = self.get_item((x, y)).as_ref().unwrap().as_force_field().unwrap().direction;
+        let ff_dir = self
+            .get_item((x, y))
+            .as_ref()
+            .unwrap()
+            .as_force_field()
+            .unwrap()
+            .direction;
         let (mut x, end_x, step) = if ff_dir == 0 {
             (wall_x1, wall_x2, 1)
         } else {
-            (wall_x2-1, wall_x1-1, -1)
+            (wall_x2 - 1, wall_x1 - 1, -1)
         };
 
         let tmp = if self.get_kind((x, y)) == Kind::ForceField {
@@ -463,17 +508,20 @@ impl Board {
     }
 
     pub fn find_robbo(&self) -> Option<Position> {
-        self.items.iter().enumerate().find(
-            |(_, v)| match v {
-                Some(item)=>item.get_kind() == Kind::Robbo,
+        self.items
+            .iter()
+            .enumerate()
+            .find(|(_, v)| match v {
+                Some(item) => item.get_kind() == Kind::Robbo,
                 None => false,
-        }).map(|(i, _)|(i as i32 % self.width, i as i32 / self.width))
+            })
+            .map(|(i, _)| (i as i32 % self.width, i as i32 / self.width))
     }
 
     pub fn destroy(&mut self, pos: Position, force: bool) {
         let (x, y) = pos;
-        if x<0 || y< 0 || x>=self.width || y>=self.height {
-            return
+        if x < 0 || y < 0 || x >= self.width || y >= self.height {
+            return;
         }
         let (is_destroyable, is_bomb_destroyable, is_question_mark) = {
             match self.get_mut_item(pos) {
@@ -481,9 +529,13 @@ impl Board {
                     if it.destroy() {
                         return;
                     }
-                    (it.is_destroyable(), !it.is_undestroyable(), it.get_kind() == Kind::Questionmark)
-                },
-                None => (false, true, false)
+                    (
+                        it.is_destroyable(),
+                        !it.is_undestroyable(),
+                        it.get_kind() == Kind::Questionmark,
+                    )
+                }
+                None => (false, true, false),
             }
         };
         if is_destroyable || force && is_bomb_destroyable {
@@ -514,7 +566,7 @@ impl Board {
                 match item {
                     Some(item) => {
                         item.moved(direction);
-                    },
+                    }
                     None => (),
                 }
             }
@@ -546,11 +598,9 @@ impl Board {
     pub fn repair_capsule(&mut self) {
         for item in &mut self.items {
             match item {
-                Some(it) => {
-                    match it.as_capsule() {
-                        Some(capsule) => capsule.repair(),
-                        None => (),
-                    }
+                Some(it) => match it.as_capsule() {
+                    Some(capsule) => capsule.repair(),
+                    None => (),
                 },
                 None => (),
             }
@@ -594,7 +644,7 @@ impl Board {
         let dest = dest_coords(pos, direction);
         let is_dst_empty = self.is_empty(dest);
         if is_dst_empty {
-            let bullet:Option<Box<dyn Item>> = match gun_type {
+            let bullet: Option<Box<dyn Item>> = match gun_type {
                 GunType::Burst => Some(Box::new(Bullet::new(direction))),
                 GunType::Solid => Some(Box::new(LaserHead::new(direction))),
                 GunType::Blaster => Some(Box::new(BlastHead::new(direction))),
@@ -619,7 +669,12 @@ impl Board {
         self._shot(pos, direction, GunType::Blaster)
     }
 
-    pub fn robbo_move_or_shot(&mut self, _pos: Position, direction: Direction, shot: bool) -> Actions {
+    pub fn robbo_move_or_shot(
+        &mut self,
+        _pos: Position,
+        direction: Direction,
+        shot: bool,
+    ) -> Actions {
         let robbo_pos = self.find_robbo();
         match robbo_pos {
             Some(pos) => {
@@ -640,18 +695,17 @@ impl Board {
                     self.robbo_move(pos, direction)
                 }
             }
-            None => None
+            None => None,
         }
     }
 
     pub fn kill_robbo(&mut self) {
-        self.find_robbo().map(|pos|{
-            self.replace(pos, Some(Box::new(Animation::small_explosion())))
-        });
+        self.find_robbo()
+            .map(|pos| self.replace(pos, Some(Box::new(Animation::small_explosion()))));
     }
 
     pub fn is_robbo_killed(&self) -> bool {
-        return self.missing_robbo_ticks >= 16
+        return self.missing_robbo_ticks >= 16;
     }
 
     pub fn explode_all(&mut self) {
@@ -674,17 +728,15 @@ impl Board {
             (0, 0) => None,
             (0, _) => Some(dir),
             (_, 0) => Some(dir),
-            _ => {
-                match self.robbo_moving_dir {
-                    Some((_, cur_dy)) => {
-                        if cur_dy != 0 {
-                            Some((dir.0, 0))
-                        } else {
-                            Some((0, dir.1))
-                        }
-                    },
-                    None => Some((dir.0, 0))
+            _ => match self.robbo_moving_dir {
+                Some((_, cur_dy)) => {
+                    if cur_dy != 0 {
+                        Some((dir.0, 0))
+                    } else {
+                        Some((0, dir.1))
+                    }
                 }
+                None => Some((dir.0, 0)),
             },
         }
     }

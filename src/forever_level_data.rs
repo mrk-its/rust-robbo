@@ -1,4 +1,4 @@
-pub const LEVEL_DATA:&str = "
+pub const LEVEL_DATA: &str = "
 
 This is robbo forever levelset. it seems as a fairly dificult levelset.
 

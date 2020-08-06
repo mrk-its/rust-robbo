@@ -181,6 +181,7 @@
               return true;
             } else if(event.code == "Escape") {
               universe.kill_robbo();
+              new Audio("data.bak/sounds/default/bomb.ogg").play()
               return true;
             } else if(event.code == "BracketLeft") {
               universe.prev_level(is_shift);

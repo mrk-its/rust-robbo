@@ -1,4 +1,4 @@
-pub const LEVEL_DATA:&str = "
+pub const LEVEL_DATA: &str = "
 This is playground. For tests.
 
 [name]

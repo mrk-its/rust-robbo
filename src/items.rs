@@ -1,8 +1,11 @@
-use types::{Kind, Flags, Action, Actions, Direction};
-use consts::{MOVEABLE, COLLECTABLE, DESTROYABLE, UNDESTROYABLE, DEADLY};
-use utils::{rotate_clockwise, rotate_counter_clockwise, direction_by_index, direction_to_index, reverse_direction};
-use board::{Neighbourhood, Inventory};
+use board::{Inventory, Neighbourhood};
+use consts::{COLLECTABLE, DEADLY, DESTROYABLE, MOVEABLE, UNDESTROYABLE};
 use random;
+use types::{Action, Actions, Direction, Flags, Kind};
+use utils::{
+    direction_by_index, direction_to_index, reverse_direction, rotate_clockwise,
+    rotate_counter_clockwise,
+};
 
 pub trait Item {
     fn get_simple_item(&self) -> &SimpleItem;
@@ -21,17 +24,25 @@ pub trait Item {
     fn enter(&mut self, _inventory: &mut Inventory, _direction: Direction) -> Actions {
         None
     }
-    fn moved(&mut self, _direction: Direction) {
-
-    }
+    fn moved(&mut self, _direction: Direction) {}
     fn destroy(&mut self) -> bool {
         false
     }
-    fn is_collectable(&self) -> bool {(self.get_flags() & COLLECTABLE) != 0}
-    fn is_moveable(&self) -> bool {(self.get_flags() & MOVEABLE) != 0}
-    fn is_destroyable(&self) -> bool {(self.get_flags() & DESTROYABLE) != 0}
-    fn is_undestroyable(&self) -> bool {(self.get_flags() & UNDESTROYABLE) != 0}
-    fn is_deadly(&self) -> bool {(self.get_flags() & DEADLY) != 0}
+    fn is_collectable(&self) -> bool {
+        (self.get_flags() & COLLECTABLE) != 0
+    }
+    fn is_moveable(&self) -> bool {
+        (self.get_flags() & MOVEABLE) != 0
+    }
+    fn is_destroyable(&self) -> bool {
+        (self.get_flags() & DESTROYABLE) != 0
+    }
+    fn is_undestroyable(&self) -> bool {
+        (self.get_flags() & UNDESTROYABLE) != 0
+    }
+    fn is_deadly(&self) -> bool {
+        (self.get_flags() & DEADLY) != 0
+    }
 
     fn as_robbo(&mut self) -> Option<&mut Robbo> {
         None
@@ -61,15 +72,28 @@ pub struct SimpleItem {
 }
 impl SimpleItem {
     pub fn new(kind: Kind, tiles: &'static [usize]) -> SimpleItem {
-        SimpleItem {kind: kind, tiles: tiles, flags: 0}
+        SimpleItem {
+            kind: kind,
+            tiles: tiles,
+            flags: 0,
+        }
     }
     pub fn flags(&self, flags: Flags) -> SimpleItem {
-        SimpleItem {flags: flags, ..*self}
+        SimpleItem {
+            flags: flags,
+            ..*self
+        }
     }
-    fn get_tile(&self, frame_cnt: usize) -> usize {self.tiles[frame_cnt / 2 % self.tiles.len()]}
-    fn get_kind(&self) -> Kind {self.kind}
-    fn get_flags(&self) -> Flags {self.flags}
-    pub fn wall(tiles: &'static[usize]) -> SimpleItem {
+    fn get_tile(&self, frame_cnt: usize) -> usize {
+        self.tiles[frame_cnt / 2 % self.tiles.len()]
+    }
+    fn get_kind(&self) -> Kind {
+        self.kind
+    }
+    fn get_flags(&self) -> Flags {
+        self.flags
+    }
+    pub fn wall(tiles: &'static [usize]) -> SimpleItem {
         SimpleItem::new(Kind::Wall, tiles).flags(UNDESTROYABLE)
     }
     pub fn abox() -> SimpleItem {
@@ -82,17 +106,14 @@ impl SimpleItem {
         SimpleItem::new(Kind::VerticalLaser, &[53])
     }
     pub fn laser_tail((dx, _dy): Direction) -> SimpleItem {
-        SimpleItem::new(Kind::LaserTail, if dx != 0 {
-            &[36, 37]
-        } else {
-            &[38, 39]
-        }).flags(UNDESTROYABLE)
+        SimpleItem::new(Kind::LaserTail, if dx != 0 { &[36, 37] } else { &[38, 39] })
+            .flags(UNDESTROYABLE)
     }
     pub fn screw() -> SimpleItem {
         SimpleItem::new(Kind::Screw, &[4]).flags(COLLECTABLE | MOVEABLE)
     }
     pub fn questionmark() -> SimpleItem {
-        SimpleItem::new(Kind::Questionmark, &[12]).flags(DESTROYABLE|MOVEABLE)
+        SimpleItem::new(Kind::Questionmark, &[12]).flags(DESTROYABLE | MOVEABLE)
     }
     pub fn bullets() -> SimpleItem {
         SimpleItem::new(Kind::Bullets, &[5]).flags(DESTROYABLE | COLLECTABLE)
@@ -106,7 +127,9 @@ impl SimpleItem {
 }
 
 impl Item for SimpleItem {
-    fn get_simple_item(&self) -> &SimpleItem {self}
+    fn get_simple_item(&self) -> &SimpleItem {
+        self
+    }
 }
 
 #[derive(Debug)]
@@ -118,7 +141,7 @@ pub struct Capsule {
 impl Capsule {
     pub fn new() -> Capsule {
         Capsule {
-            simple_item: SimpleItem::new(Kind::Capsule, &[17, 18]).flags(MOVEABLE|UNDESTROYABLE),
+            simple_item: SimpleItem::new(Kind::Capsule, &[17, 18]).flags(MOVEABLE | UNDESTROYABLE),
             is_working: false,
         }
     }
@@ -128,7 +151,9 @@ impl Capsule {
 }
 
 impl Item for Capsule {
-    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
+    fn get_simple_item(&self) -> &SimpleItem {
+        &self.simple_item
+    }
     fn get_tile(&self, frame_cnt: usize) -> usize {
         if self.is_working {
             self.simple_item.get_tile(frame_cnt)
@@ -167,7 +192,9 @@ impl ForceField {
 }
 
 impl Item for ForceField {
-    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
+    fn get_simple_item(&self) -> &SimpleItem {
+        &self.simple_item
+    }
     fn as_force_field(&self) -> Option<&ForceField> {
         Some(self)
     }
@@ -176,9 +203,9 @@ impl Item for ForceField {
 #[repr(u16)]
 #[derive(Debug)]
 pub enum GunType {
-    Burst=0,
-    Solid=1,
-    Blaster=2,
+    Burst = 0,
+    Solid = 1,
+    Blaster = 2,
 }
 
 #[derive(Debug)]
@@ -199,10 +226,18 @@ impl Gun {
     pub fn new(params: &[u16]) -> Gun {
         let is_moveable = params[3] > 0;
         Gun {
-            simple_item: SimpleItem::new(Kind::Gun, &[53, 54, 55, 56]).flags(if is_moveable {MOVEABLE} else {0}),
+            simple_item: SimpleItem::new(Kind::Gun, &[53, 54, 55, 56]).flags(if is_moveable {
+                MOVEABLE
+            } else {
+                0
+            }),
             shooting_dir: direction_by_index(params[0] as usize),
             moving_dir: direction_by_index(params[1] as usize),
-            gun_type: match params[2] {1 => GunType::Solid, 2 => GunType::Blaster, _ => GunType::Burst},
+            gun_type: match params[2] {
+                1 => GunType::Solid,
+                2 => GunType::Blaster,
+                _ => GunType::Burst,
+            },
             is_moveable,
             is_rotateable: *params.get(4).unwrap_or(&0) > 0,
             is_random_rotatable: *params.get(5).unwrap_or(&0) > 0,
@@ -211,7 +246,9 @@ impl Gun {
     }
 }
 impl Item for Gun {
-    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
+    fn get_simple_item(&self) -> &SimpleItem {
+        &self.simple_item
+    }
     fn get_tile(&self, _frame_cnt: usize) -> usize {
         self.simple_item.tiles[direction_to_index(self.shooting_dir)]
     }
@@ -225,7 +262,9 @@ impl Item for Gun {
                 self.moving_dir = (-dx, -dy);
             }
         }
-        if (self.is_random_rotatable || self.is_rotateable) && random::random() < Gun::ROTATE_PROBABILITY {
+        if (self.is_random_rotatable || self.is_rotateable)
+            && random::random() < Gun::ROTATE_PROBABILITY
+        {
             if self.is_random_rotatable {
                 self.shooting_dir = direction_by_index(random::randrange(4) as usize);
             } else {
@@ -263,7 +302,9 @@ impl Magnet {
     }
 }
 impl Item for Magnet {
-    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
+    fn get_simple_item(&self) -> &SimpleItem {
+        &self.simple_item
+    }
     fn get_tile(&self, _frame_cnt: usize) -> usize {
         self.simple_item.tiles[self.dir]
     }
@@ -291,7 +332,9 @@ impl Bird {
 }
 
 impl Item for Bird {
-    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
+    fn get_simple_item(&self) -> &SimpleItem {
+        &self.simple_item
+    }
     fn tick(&mut self, neighbours: &Neighbourhood) -> Actions {
         let mut actions = vec![];
         if neighbours.is_empty(self.moving_dir) {
@@ -323,38 +366,47 @@ impl Butterfly {
     }
 }
 
-
 impl Item for Butterfly {
-    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
+    fn get_simple_item(&self) -> &SimpleItem {
+        &self.simple_item
+    }
     fn tick(&mut self, neighbours: &Neighbourhood) -> Actions {
         if random::random() > Butterfly::MOVE_PROBABILITY {
             return None;
         }
         if random::random() < Butterfly::RANDOM_MOVE_PROBABILITY {
-            let valid_dirs = (0..4).map(direction_by_index).filter(|dir| neighbours.is_empty(*dir)).collect::<Vec<Direction>>();
+            let valid_dirs = (0..4)
+                .map(direction_by_index)
+                .filter(|dir| neighbours.is_empty(*dir))
+                .collect::<Vec<Direction>>();
             if valid_dirs.len() > 0 {
-                return Some(vec![Action::RelMove(valid_dirs[random::randrange(valid_dirs.len() as u32) as usize])]);
+                return Some(vec![Action::RelMove(
+                    valid_dirs[random::randrange(valid_dirs.len() as u32) as usize],
+                )]);
             }
         }
-        neighbours.get_robbo_dir().map(|(dx, dy)| {
-            if dx.abs() < dy.abs() {
-                if dx != 0 && neighbours.is_empty((dx.signum(), 0)) {
-                    (dx.signum(), 0)
-                } else if dy != 0  && neighbours.is_empty((0, dy.signum())) {
-                    (0, dy.signum())
+        neighbours
+            .get_robbo_dir()
+            .map(|(dx, dy)| {
+                if dx.abs() < dy.abs() {
+                    if dx != 0 && neighbours.is_empty((dx.signum(), 0)) {
+                        (dx.signum(), 0)
+                    } else if dy != 0 && neighbours.is_empty((0, dy.signum())) {
+                        (0, dy.signum())
+                    } else {
+                        (0, 0)
+                    }
                 } else {
-                    (0, 0)
+                    if dy != 0 && neighbours.is_empty((0, dy.signum())) {
+                        (0, dy.signum())
+                    } else if dx != 0 && neighbours.is_empty((dx.signum(), 0)) {
+                        (dx.signum(), 0)
+                    } else {
+                        (0, 0)
+                    }
                 }
-            } else {
-                if dy != 0  && neighbours.is_empty((0, dy.signum())) {
-                    (0, dy.signum())
-                } else if dx != 0 && neighbours.is_empty((dx.signum(), 0)) {
-                    (dx.signum(), 0)
-                } else {
-                    (0, 0)
-                }
-            }
-        }).map(|dir| vec![Action::RelMove(dir)])
+            })
+            .map(|dir| vec![Action::RelMove(dir)])
     }
 }
 
@@ -364,22 +416,23 @@ pub struct Bear {
     moving_dir: Direction,
 }
 impl Bear {
-    pub fn new(kind: Kind, params: &[u16], tiles:&'static [usize]) -> Bear {
+    pub fn new(kind: Kind, params: &[u16], tiles: &'static [usize]) -> Bear {
         Bear {
-            simple_item: SimpleItem::new(kind, tiles).flags(DESTROYABLE|DEADLY),
+            simple_item: SimpleItem::new(kind, tiles).flags(DESTROYABLE | DEADLY),
             moving_dir: direction_by_index(params[0] as usize),
         }
     }
 }
 
-
 impl Item for Bear {
-    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
+    fn get_simple_item(&self) -> &SimpleItem {
+        &self.simple_item
+    }
     fn tick(&mut self, neighbours: &Neighbourhood) -> Actions {
         let mut actions = vec![];
 
         type RotateFn = dyn Fn(Direction) -> Direction;
-        let (r1, r2):(&RotateFn, &RotateFn) = if self.simple_item.get_kind() == Kind::Bear {
+        let (r1, r2): (&RotateFn, &RotateFn) = if self.simple_item.get_kind() == Kind::Bear {
             (&rotate_counter_clockwise, &rotate_clockwise)
         } else {
             (&rotate_clockwise, &rotate_counter_clockwise)
@@ -408,11 +461,16 @@ pub struct Door {
 }
 impl Door {
     pub fn new() -> Door {
-        Door {open: false, simple_item: SimpleItem::new(Kind::Door, &[9])}
+        Door {
+            open: false,
+            simple_item: SimpleItem::new(Kind::Door, &[9]),
+        }
     }
 }
 impl Item for Door {
-    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
+    fn get_simple_item(&self) -> &SimpleItem {
+        &self.simple_item
+    }
     fn enter(&mut self, inventory: &mut Inventory, _direction: Direction) -> Actions {
         if inventory.keys > 0 {
             inventory.keys -= 1;
@@ -448,9 +506,15 @@ impl Teleport {
 }
 
 impl Item for Teleport {
-    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
+    fn get_simple_item(&self) -> &SimpleItem {
+        &self.simple_item
+    }
     fn enter(&mut self, _inventory: &mut Inventory, direction: Direction) -> Actions {
-        Some(vec![Action::TeleportRobbo(self.group, self.position_in_group, direction)])
+        Some(vec![Action::TeleportRobbo(
+            self.group,
+            self.position_in_group,
+            direction,
+        )])
     }
     fn as_teleport(&self) -> Option<&Teleport> {
         Some(self)
@@ -463,20 +527,28 @@ pub struct Bullet {
 }
 impl Bullet {
     pub fn new(direction: Direction) -> Bullet {
-        Bullet {direction, simple_item: SimpleItem::new(Kind::Bullet, &[36, 37, 38, 39]).flags(UNDESTROYABLE)}
+        Bullet {
+            direction,
+            simple_item: SimpleItem::new(Kind::Bullet, &[36, 37, 38, 39]).flags(UNDESTROYABLE),
+        }
     }
 }
 impl Item for Bullet {
-    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
+    fn get_simple_item(&self) -> &SimpleItem {
+        &self.simple_item
+    }
     fn get_tile(&self, frame_cnt: usize) -> usize {
         let (kx, _ky) = self.direction;
-        self.simple_item.tiles[(if kx != 0 {0} else {2}) + (frame_cnt % 2)]
+        self.simple_item.tiles[(if kx != 0 { 0 } else { 2 }) + (frame_cnt % 2)]
     }
     fn tick(&mut self, neighbours: &Neighbourhood) -> Actions {
         if neighbours.is_empty(self.direction) {
             Some(vec![Action::RelMove(self.direction)])
         } else {
-            Some(vec![Action::DestroyBullet, Action::RelImpact(self.direction, false)])
+            Some(vec![
+                Action::DestroyBullet,
+                Action::RelImpact(self.direction, false),
+            ])
         }
     }
 }
@@ -487,11 +559,16 @@ pub struct PushBox {
 }
 impl PushBox {
     pub fn new() -> PushBox {
-        PushBox {direction: (0,0), simple_item: SimpleItem::new(Kind::ABox, &[6]).flags(MOVEABLE)}
+        PushBox {
+            direction: (0, 0),
+            simple_item: SimpleItem::new(Kind::ABox, &[6]).flags(MOVEABLE),
+        }
     }
 }
 impl Item for PushBox {
-    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
+    fn get_simple_item(&self) -> &SimpleItem {
+        &self.simple_item
+    }
     fn tick(&mut self, neighbours: &Neighbourhood) -> Actions {
         if self.direction != (0, 0) {
             if neighbours.is_empty(self.direction) {
@@ -525,14 +602,17 @@ impl LaserHead {
     }
 }
 impl Item for LaserHead {
-    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
+    fn get_simple_item(&self) -> &SimpleItem {
+        &self.simple_item
+    }
     fn get_tile(&self, frame_cnt: usize) -> usize {
         let (kx, _ky) = self.direction;
-        self.simple_item.tiles[(if kx != 0 {0} else {2}) + (frame_cnt % 2)]
+        self.simple_item.tiles[(if kx != 0 { 0 } else { 2 }) + (frame_cnt % 2)]
     }
     fn tick(&mut self, neighbours: &Neighbourhood) -> Actions {
         if neighbours.is_empty(self.direction)
-           || self.moving_back && neighbours.get_kind(self.direction) == Kind::LaserTail {
+            || self.moving_back && neighbours.get_kind(self.direction) == Kind::LaserTail
+        {
             Some(vec![Action::LaserHeadMove(self.direction)])
         } else {
             if !self.moving_back {
@@ -541,7 +621,10 @@ impl Item for LaserHead {
                 self.direction = reverse_direction(self.direction);
                 Some(vec![Action::RelImpact(dir, false)])
             } else {
-                Some(vec![Action::DestroyBullet, Action::RelImpact(self.direction, false)])
+                Some(vec![
+                    Action::DestroyBullet,
+                    Action::RelImpact(self.direction, false),
+                ])
             }
         }
     }
@@ -560,14 +643,20 @@ impl BlastHead {
     }
 }
 impl Item for BlastHead {
-    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
+    fn get_simple_item(&self) -> &SimpleItem {
+        &self.simple_item
+    }
     fn tick(&mut self, neighbours: &Neighbourhood) -> Actions {
         if neighbours.is_empty(self.direction)
-           || (neighbours.get_flags(self.direction) & DESTROYABLE) > 0
-           && (neighbours.get_kind(self.direction) != Kind::Bomb) {
+            || (neighbours.get_flags(self.direction) & DESTROYABLE) > 0
+                && (neighbours.get_kind(self.direction) != Kind::Bomb)
+        {
             Some(vec![Action::BlastHeadMove(self.direction)])
         } else {
-            Some(vec![Action::BlastHeadDestroy, Action::RelImpact(self.direction, false)])
+            Some(vec![
+                Action::BlastHeadDestroy,
+                Action::RelImpact(self.direction, false),
+            ])
         }
     }
 }
@@ -578,14 +667,20 @@ pub struct Robbo {
 }
 impl Robbo {
     pub fn new() -> Robbo {
-        Robbo {direction: (0, 1), simple_item: SimpleItem::new(Kind::Robbo, &[60, 61, 62, 63, 64, 65, 66, 67]).flags(DESTROYABLE)}
+        Robbo {
+            direction: (0, 1),
+            simple_item: SimpleItem::new(Kind::Robbo, &[60, 61, 62, 63, 64, 65, 66, 67])
+                .flags(DESTROYABLE),
+        }
     }
     pub fn set_direction(&mut self, direction: Direction) {
         self.direction = direction;
     }
 }
 impl Item for Robbo {
-    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
+    fn get_simple_item(&self) -> &SimpleItem {
+        &self.simple_item
+    }
     fn get_tile(&self, frame_cnt: usize) -> usize {
         let index = direction_to_index(self.direction) * 2;
         self.simple_item.tiles[index + frame_cnt / 2 % 2]
@@ -613,7 +708,11 @@ impl Animation {
         Animation::new(Kind::Explosion, &[52, 51, 50], Action::AutoRemove)
     }
     pub fn spawn_robbo() -> Animation {
-        Animation::new(Kind::Explosion, &[17, 18, 17, 18, 50, 51, 52], Action::SpawnRobbo)
+        Animation::new(
+            Kind::Explosion,
+            &[17, 18, 17, 18, 50, 51, 52],
+            Action::SpawnRobbo,
+        )
     }
     pub fn teleport_robbo() -> Animation {
         Animation::new(Kind::Explosion, &[50, 51, 52], Action::SpawnRobbo)
@@ -627,7 +726,9 @@ impl Animation {
 }
 
 impl Item for Animation {
-    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
+    fn get_simple_item(&self) -> &SimpleItem {
+        &self.simple_item
+    }
     fn get_tile(&self, _frame_cnt: usize) -> usize {
         self.simple_item.tiles[self.frame]
     }
@@ -657,14 +758,16 @@ pub struct Bomb {
 impl Bomb {
     pub fn new() -> Bomb {
         Bomb {
-            simple_item: SimpleItem::new(Kind::Bomb, &[8]).flags(DESTROYABLE|MOVEABLE),
+            simple_item: SimpleItem::new(Kind::Bomb, &[8]).flags(DESTROYABLE | MOVEABLE),
             state: BombState::Ready,
         }
     }
 }
 
 impl Item for Bomb {
-    fn get_simple_item(&self) -> &SimpleItem {&self.simple_item}
+    fn get_simple_item(&self) -> &SimpleItem {
+        &self.simple_item
+    }
     fn tick(&mut self, _neighbours: &Neighbourhood) -> Actions {
         match self.state {
             BombState::Ignited => {
@@ -675,7 +778,7 @@ impl Item for Bomb {
                     Action::RelImpact((0, 1), true),
                     Action::RelImpact((-1, 1), true),
                 ])
-            },
+            }
             BombState::Exploded => {
                 self.state = BombState::Final;
                 Some(vec![
@@ -683,12 +786,10 @@ impl Item for Bomb {
                     Action::RelImpact((-1, -1), true),
                     Action::RelImpact((-1, 0), true),
                     Action::RelImpact((1, 0), true),
-                    Action::AutoRemove
+                    Action::AutoRemove,
                 ])
             }
-            _ => {
-                None
-            }
+            _ => None,
         }
     }
     fn destroy(&mut self) -> bool {
@@ -698,4 +799,3 @@ impl Item for Bomb {
         true
     }
 }
-

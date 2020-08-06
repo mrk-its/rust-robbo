@@ -1,28 +1,27 @@
 extern crate cfg_if;
+extern crate js_sys;
 extern crate wasm_bindgen;
 extern crate web_sys;
-extern crate js_sys;
 
 #[macro_use]
 mod log;
-mod utils;
-mod levels;
-mod types;
-mod consts;
-mod items;
 mod board;
-mod original_level_data;
+mod consts;
 mod forever_level_data;
+mod items;
+mod levels;
+mod original_level_data;
 mod playground_level_data;
 mod random;
+mod types;
+mod utils;
 
-use utils::{modulo, set_panic_hook};
 use board::Board;
-use log::log;
 use cfg_if::cfg_if;
-use wasm_bindgen::prelude::*;
 use levels::LevelSet;
-
+use log::log;
+use utils::{modulo, set_panic_hook};
+use wasm_bindgen::prelude::*;
 
 cfg_if! {
     // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
@@ -54,7 +53,6 @@ pub struct Universe {
 /// Public methods, exported to JavaScript.
 #[wasm_bindgen]
 impl Universe {
-
     pub fn reload_level(&mut self) {
         let level = &self.level_sets[self.current_levelset].levels[self.current_level];
         log(&format!("{:#?}", level));
@@ -69,24 +67,24 @@ impl Universe {
         if level_set {
             self.current_levelset = modulo(
                 self.current_levelset as i32 - 1,
-                self.level_sets.len() as i32
+                self.level_sets.len() as i32,
             ) as usize;
             self.current_level = 0;
         } else {
             self.current_level = modulo(
-                self.current_level as i32 -1,
-                self.level_sets[self.current_levelset].size() as i32
+                self.current_level as i32 - 1,
+                self.level_sets[self.current_levelset].size() as i32,
             ) as usize;
         }
         self.reload_level();
-
     }
     pub fn next_level(&mut self, level_set: bool) {
         if level_set {
             self.current_levelset = (self.current_levelset + 1) % self.level_sets.len();
             self.current_level = 0;
         } else {
-            self.current_level = (self.current_level + 1) % self.level_sets[self.current_levelset].size();
+            self.current_level =
+                (self.current_level + 1) % self.level_sets[self.current_levelset].size();
         }
         self.reload_level();
     }
@@ -102,7 +100,6 @@ impl Universe {
     pub fn robbo_move(&mut self, kx: i32, ky: i32) {
         self.board.robbo_move_event((kx, ky))
     }
-
 
     pub fn new(current_levelset: usize, current_level: usize) -> Universe {
         set_panic_hook();
@@ -135,7 +132,8 @@ impl Universe {
             self.current_level + 1,
             self.board.missing_screws - self.board.inventory.screws,
             self.board.inventory.keys,
-            self.board.inventory.bullets))
+            self.board.inventory.bullets
+        ))
     }
 
     pub fn get_missing_robbo_ticks(&self) -> usize {
@@ -154,12 +152,12 @@ impl Universe {
     pub fn tick(&mut self) {
         if self.board.finished {
             self.load_next_level();
-            return
+            return;
         }
         self.board.tick();
         if self.board.is_robbo_killed() {
             self.reload_level();
-            return
+            return;
         }
     }
     pub fn get_tile(&self, x: i32, y: i32, frame_cnt: usize) -> usize {
