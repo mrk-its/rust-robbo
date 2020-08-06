@@ -1,0 +1,7 @@
+/target
+**/*.rs.bk
+Cargo.lock
+bin/
+pkg/
+deploy_mrk.sh
+data.bak
