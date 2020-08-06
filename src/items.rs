@@ -79,10 +79,7 @@ impl SimpleItem {
         }
     }
     pub fn flags(&self, flags: Flags) -> SimpleItem {
-        SimpleItem {
-            flags,
-            ..*self
-        }
+        SimpleItem { flags, ..*self }
     }
     fn get_tile(&self, frame_cnt: usize) -> usize {
         self.tiles[frame_cnt / 2 % self.tiles.len()]
@@ -379,7 +376,7 @@ impl Item for Butterfly {
                 .map(direction_by_index)
                 .filter(|dir| neighbours.is_empty(*dir))
                 .collect::<Vec<Direction>>();
-            if valid_dirs.len() > 0 {
+            if !valid_dirs.is_empty() {
                 return Some(vec![Action::RelMove(
                     valid_dirs[random::randrange(valid_dirs.len() as u32) as usize],
                 )]);
@@ -396,14 +393,12 @@ impl Item for Butterfly {
                     } else {
                         (0, 0)
                     }
+                } else if dy != 0 && neighbours.is_empty((0, dy.signum())) {
+                    (0, dy.signum())
+                } else if dx != 0 && neighbours.is_empty((dx.signum(), 0)) {
+                    (dx.signum(), 0)
                 } else {
-                    if dy != 0 && neighbours.is_empty((0, dy.signum())) {
-                        (0, dy.signum())
-                    } else if dx != 0 && neighbours.is_empty((dx.signum(), 0)) {
-                        (dx.signum(), 0)
-                    } else {
-                        (0, 0)
-                    }
+                    (0, 0)
                 }
             })
             .map(|dir| vec![Action::RelMove(dir)])
@@ -615,18 +610,16 @@ impl Item for LaserHead {
             || self.moving_back && neighbours.get_kind(self.direction) == Kind::LaserTail
         {
             Some(vec![Action::LaserHeadMove(self.direction)])
+        } else if !self.moving_back {
+            self.moving_back = true;
+            let dir = self.direction;
+            self.direction = reverse_direction(self.direction);
+            Some(vec![Action::RelImpact(dir, false)])
         } else {
-            if !self.moving_back {
-                self.moving_back = true;
-                let dir = self.direction;
-                self.direction = reverse_direction(self.direction);
-                Some(vec![Action::RelImpact(dir, false)])
-            } else {
-                Some(vec![
-                    Action::DestroyBullet,
-                    Action::RelImpact(self.direction, false),
-                ])
-            }
+            Some(vec![
+                Action::DestroyBullet,
+                Action::RelImpact(self.direction, false),
+            ])
         }
     }
 }

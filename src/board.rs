@@ -182,7 +182,7 @@ impl Board {
         let left = self.get_kind_and_flags((x - 1, y));
         let right = self.get_kind_and_flags((x + 1, y));
 
-        let magnetic_force_dir = robbo_pos.map_or(None, |robbo_pos| {
+        let magnetic_force_dir = robbo_pos.and_then(|robbo_pos| {
             (0..4)
                 .map(direction_by_index)
                 .map(|dir| self.get_magnetic_force_dir(robbo_pos, dir))
@@ -208,7 +208,7 @@ impl Board {
         }
         self.get_item(pos)
             .as_ref()
-            .map_or(None, |item| item.as_magnet())
+            .and_then(|item| item.as_magnet())
             .filter(|magnet| magnet.get_magnetic_force_dir() == dir)
             .map(|_magnet| dir)
     }
@@ -284,88 +284,82 @@ impl Board {
                 {
                     self.destroy(pos, true);
                 } else if kind == Kind::Gun {
-                    match self.get_mut_item(pos) {
-                        Some(item) => {
-                            item.as_gun().unwrap().disabled = !item.as_gun().unwrap().disabled
-                        }
-                        None => (),
+                    if let Some(item) = self.get_mut_item(pos) {
+                        item.as_gun().unwrap().disabled = !item.as_gun().unwrap().disabled
                     }
                 }
             }
         }
     }
     pub fn dispatch_actions(&mut self, actions: Actions, pos: Position) {
-        match actions {
-            Some(actions) => {
-                for action in actions {
-                    match action {
-                        Action::BombExplosion => self.play_sound(Sound::Bomb),
-                        Action::DoorOpened => self.play_sound(Sound::Door),
-                        Action::RelMove(direction) => {
-                            self.move_if_empty(pos, direction);
+        if let Some(actions) = actions {
+            for action in actions {
+                match action {
+                    Action::BombExplosion => self.play_sound(Sound::Bomb),
+                    Action::DoorOpened => self.play_sound(Sound::Door),
+                    Action::RelMove(direction) => {
+                        self.move_if_empty(pos, direction);
+                    }
+                    Action::LaserHeadMove(direction) => {
+                        self.laser_move(pos, direction);
+                    }
+                    Action::BlastHeadMove(direction) => {
+                        self.blast_move(pos, direction);
+                    }
+                    Action::BlastHeadDestroy => {
+                        self.replace(pos, Some(Box::new(Animation::blast_tail())))
+                    }
+                    Action::AutoRemove => {
+                        self.remove(pos);
+                    }
+                    Action::NextLevel => {
+                        self.finished = true;
+                    }
+                    Action::DestroyBullet => {
+                        self.replace(pos, Some(Box::new(Animation::small_explosion())));
+                        self.play_sound(Sound::GunShot);
+                    }
+                    Action::RelImpact(direction, force) => {
+                        let dest = dest_coords(pos, direction);
+                        self.destroy(dest, force);
+                        self.mark_as_processed(dest);
+                    }
+                    Action::CreateBullet(direction) => {
+                        self.shot(pos, direction);
+                    }
+                    Action::CreateLaser(direction) => {
+                        self.laser_shot(pos, direction);
+                    }
+                    Action::CreateBlast(direction) => {
+                        self.blaster_shot(pos, direction);
+                    }
+                    Action::SpawnRobbo(initial) => {
+                        self.replace(pos, Some(Box::new(Robbo::new())));
+                        if initial {
+                            self.play_sound(Sound::Spawn);
                         }
-                        Action::LaserHeadMove(direction) => {
-                            self.laser_move(pos, direction);
-                        }
-                        Action::BlastHeadMove(direction) => {
-                            self.blast_move(pos, direction);
-                        }
-                        Action::BlastHeadDestroy => {
-                            self.replace(pos, Some(Box::new(Animation::blast_tail())))
-                        }
-                        Action::AutoRemove => {
-                            self.remove(pos);
-                        }
-                        Action::NextLevel => {
-                            self.finished = true;
-                        }
-                        Action::DestroyBullet => {
-                            self.replace(pos, Some(Box::new(Animation::small_explosion())));
-                            self.play_sound(Sound::GunShot);
-                        }
-                        Action::RelImpact(direction, force) => {
-                            let dest = dest_coords(pos, direction);
-                            self.destroy(dest, force);
-                            self.mark_as_processed(dest);
-                        }
-                        Action::CreateBullet(direction) => {
-                            self.shot(pos, direction);
-                        }
-                        Action::CreateLaser(direction) => {
-                            self.laser_shot(pos, direction);
-                        }
-                        Action::CreateBlast(direction) => {
-                            self.blaster_shot(pos, direction);
-                        }
-                        Action::SpawnRobbo(initial) => {
-                            self.replace(pos, Some(Box::new(Robbo::new())));
-                            if initial {
-                                self.play_sound(Sound::Spawn);
-                            }
-                        }
-                        Action::SpawnRandomItem => {
-                            // empty field, push box, screw, bullet, key, bomb, ground, butterfly, gun or another questionmark
-                            let item: Box<dyn Item> = match random::randrange(10) {
-                                1 => Box::new(PushBox::new()),
-                                2 => Box::new(SimpleItem::screw()),
-                                3 => Box::new(SimpleItem::bullets()),
-                                4 => Box::new(SimpleItem::key()),
-                                5 => Box::new(Bomb::new()),
-                                6 => Box::new(SimpleItem::ground()),
-                                7 => Box::new(Butterfly::new()),
-                                8 => Box::new(Gun::new(&[0, 0, 0, 0, 0, 1])),
-                                9 => Box::new(SimpleItem::questionmark()),
-                                _ => Box::new(Animation::small_explosion()),
-                            };
-                            self.replace(pos, Some(item))
-                        }
-                        Action::TeleportRobbo(group, position_in_group, direction) => {
-                            self.teleport_robbo(group, position_in_group, direction);
-                        }
+                    }
+                    Action::SpawnRandomItem => {
+                        // empty field, push box, screw, bullet, key, bomb, ground, butterfly, gun or another questionmark
+                        let item: Box<dyn Item> = match random::randrange(10) {
+                            1 => Box::new(PushBox::new()),
+                            2 => Box::new(SimpleItem::screw()),
+                            3 => Box::new(SimpleItem::bullets()),
+                            4 => Box::new(SimpleItem::key()),
+                            5 => Box::new(Bomb::new()),
+                            6 => Box::new(SimpleItem::ground()),
+                            7 => Box::new(Butterfly::new()),
+                            8 => Box::new(Gun::new(&[0, 0, 0, 0, 0, 1])),
+                            9 => Box::new(SimpleItem::questionmark()),
+                            _ => Box::new(Animation::small_explosion()),
+                        };
+                        self.replace(pos, Some(item))
+                    }
+                    Action::TeleportRobbo(group, position_in_group, direction) => {
+                        self.teleport_robbo(group, position_in_group, direction);
                     }
                 }
             }
-            None => (),
         }
     }
 
@@ -522,8 +516,8 @@ impl Board {
             x += step;
         }
 
-        if tmp.is_some() {
-            self.items[(y * self.width + x - step) as usize].replace(tmp.unwrap());
+        if let Some(tmp) = tmp {
+            self.items[(y * self.width + x - step) as usize].replace(tmp);
         }
         wall_x2
     }
@@ -584,11 +578,8 @@ impl Board {
             self.swap(pos, dest_pos);
             {
                 let item = self.get_mut_item(dest_pos);
-                match item {
-                    Some(item) => {
-                        item.moved(direction);
-                    }
-                    None => (),
+                if let Some(item) = item {
+                    item.moved(direction);
                 }
             }
             self.mark_as_processed(dest_pos);
@@ -618,12 +609,10 @@ impl Board {
 
     pub fn repair_capsule(&mut self) {
         for item in &mut self.items {
-            match item {
-                Some(it) => match it.as_capsule() {
-                    Some(capsule) => capsule.repair(),
-                    None => (),
-                },
-                None => (),
+            if let Some(it) = item {
+                if let Some(capsule) = it.as_capsule() {
+                    capsule.repair()
+                }
             }
         }
     }
@@ -726,8 +715,9 @@ impl Board {
     }
 
     pub fn kill_robbo(&mut self) {
-        self.find_robbo()
-            .map(|pos| self.replace(pos, Some(Box::new(Animation::small_explosion()))));
+        if let Some(pos) = self.find_robbo() {
+            self.replace(pos, Some(Box::new(Animation::small_explosion())))
+        }
     }
 
     pub fn is_robbo_killed(&self) -> bool {

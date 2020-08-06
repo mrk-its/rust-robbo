@@ -128,17 +128,17 @@ impl Universe {
     }
 
     pub fn get_inventory(&self) -> String {
-        String::from(format!(
+        format!(
             "level: {:02} screws: {:02} keys: {:02} bullets: {:02}",
             self.current_level + 1,
             self.board.missing_screws - self.board.inventory.screws,
             self.board.inventory.keys,
             self.board.inventory.bullets
-        ))
+        )
     }
 
     pub fn get_missing_robbo_ticks(&self) -> usize {
-        return self.board.missing_robbo_ticks;
+        self.board.missing_robbo_ticks
     }
 
     pub fn load_next_level(&mut self) {

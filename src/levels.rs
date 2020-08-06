@@ -15,14 +15,14 @@ impl LevelSet {
         let mut default_level_color: String = String::from("000000");
         let mut collecting_data: bool = false;
         let mut current_level = Level::new();
-        let mut lines = data.split("\n");
+        let mut lines = data.split('\n');
         loop {
             let line = lines.next();
             if line.is_none() {
                 break;
             }
             let line = line.unwrap();
-            if line.starts_with("[") {
+            if line.starts_with('[') {
                 collecting_data = false;
             }
             match line {
@@ -89,7 +89,7 @@ impl LevelSet {
 
         LevelSet {
             name: String::from(level_set_name.unwrap()),
-            levels: levels,
+            levels,
         }
     }
     pub fn size(&self) -> usize {
