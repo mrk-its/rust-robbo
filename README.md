@@ -11,25 +11,17 @@ It uses graphics / level data from [GNU Robbo](http://gnurobbo.sourceforge.net)
 ### Prerequisites
 
 * [rust](https://www.rust-lang.org/tools/install)
-* [npm](https://www.npmjs.com/get-npm)
 * [wasm-pack](https://rustwasm.github.io/wasm-pack/installer/)
-
+* [basic-http-server](https://github.com/brson/basic-http-server)
 
 ```
-$ wasm-pack build
-$ (cd pkg; npm link)
-$ cd www
-$ npm link rust-robbo
-$ npm install
+$ wasm-pack build --target web -d www/pkg
+$ basic-http-server ./www/
 ```
 
 ## Run
-```
-$ npm run start
-```
 
-open [http://localhost:8080/](http://localhost:8080/) in your browser (it should work on latest Chrome/Firefox)
-
+open [http://localhost:4000/](http://localhost:4000/) in your browser
 
 ### How to play
 
