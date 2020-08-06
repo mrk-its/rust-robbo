@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8">
     <title>Rust Robbo</title>
+    <link rel="icon" type="image/png" href="data/robbo.png" />
     <style>
         #fps {
           white-space: pre;
@@ -31,6 +32,30 @@
   <body>
     <script type="module">
       import init, {Universe} from './pkg/rust_robbo.js';
+
+      let audio_files = {
+        1: 'walk_default.ogg',
+        2: 'teleport.ogg',
+        3: 'ammo.ogg',
+        4: 'key.ogg',
+        5: 'screw.ogg',
+        6: 'bomb.ogg',
+        7: 'door_default.ogg',
+        8: 'shoot_default.ogg',
+        9: 'gun_default.ogg',
+        10: 'teleport.ogg',
+      }
+
+      let _audio_cache = {}
+
+      function play_sound(sound) {
+        if(!(sound in audio_files)) {
+          console.warn("no audio file for sound", sound);
+          return
+        }
+        let audio = new Audio('data/sounds/default/' + audio_files[sound]);
+        audio.play();
+      }
 
       let is_rotated = true;
 
@@ -148,6 +173,9 @@
                 universe.tick();
                 draw(universe, ctx, image_data, frame_cnt);
                 inventory.textContent = universe.get_inventory();
+                for(let sound of universe.get_sounds().values()) {
+                  play_sound(sound);
+                }
             }
             requestAnimationFrame(renderLoop);
         };

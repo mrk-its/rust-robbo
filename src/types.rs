@@ -43,9 +43,11 @@ pub enum Action {
     CreateLaser(Direction),
     CreateBlast(Direction),
     DestroyBullet,
-    SpawnRobbo,
+    SpawnRobbo(bool),
     SpawnRandomItem,
     TeleportRobbo(u16, u16, Direction),
     NextLevel,
+    BombExplosion,
+    DoorOpened,
 }
 pub type Actions = Option<Vec<Action>>;

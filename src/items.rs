@@ -73,14 +73,14 @@ pub struct SimpleItem {
 impl SimpleItem {
     pub fn new(kind: Kind, tiles: &'static [usize]) -> SimpleItem {
         SimpleItem {
-            kind: kind,
-            tiles: tiles,
+            kind,
+            tiles,
             flags: 0,
         }
     }
     pub fn flags(&self, flags: Flags) -> SimpleItem {
         SimpleItem {
-            flags: flags,
+            flags,
             ..*self
         }
     }
@@ -476,6 +476,7 @@ impl Item for Door {
             inventory.keys -= 1;
             inventory.show();
             self.open = true;
+            return Some(vec![Action::DoorOpened]);
         }
         None
     }
@@ -711,11 +712,11 @@ impl Animation {
         Animation::new(
             Kind::Explosion,
             &[17, 18, 17, 18, 50, 51, 52],
-            Action::SpawnRobbo,
+            Action::SpawnRobbo(true),
         )
     }
     pub fn teleport_robbo() -> Animation {
-        Animation::new(Kind::Explosion, &[50, 51, 52], Action::SpawnRobbo)
+        Animation::new(Kind::Explosion, &[50, 51, 52], Action::SpawnRobbo(false))
     }
     pub fn question_mark_explosion() -> Animation {
         Animation::new(Kind::Explosion, &[50, 51, 52], Action::SpawnRandomItem)
@@ -773,6 +774,7 @@ impl Item for Bomb {
             BombState::Ignited => {
                 self.state = BombState::Exploded;
                 Some(vec![
+                    Action::BombExplosion,
                     Action::RelImpact((1, -1), true),
                     Action::RelImpact((1, 1), true),
                     Action::RelImpact((0, 1), true),

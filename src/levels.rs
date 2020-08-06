@@ -73,7 +73,7 @@ impl LevelSet {
                     }
                 }
                 "[end]" => {
-                    if current_level.color.len() == 0 {
+                    if current_level.color.is_empty() {
                         current_level.color = default_level_color.clone();
                     }
                     levels.push(current_level);

@@ -13,6 +13,7 @@ mod levels;
 mod original_level_data;
 mod playground_level_data;
 mod random;
+mod sound;
 mod types;
 mod utils;
 
@@ -157,7 +158,6 @@ impl Universe {
         self.board.tick();
         if self.board.is_robbo_killed() {
             self.reload_level();
-            return;
         }
     }
     pub fn get_tile(&self, x: i32, y: i32, frame_cnt: usize) -> usize {
@@ -168,5 +168,8 @@ impl Universe {
     }
     pub fn get_board_height(&self) -> i32 {
         self.board.height
+    }
+    pub fn get_sounds(&mut self) -> Vec<i16> {
+        self.board.get_sounds().iter().map(|v| *v as i16).collect()
     }
 }

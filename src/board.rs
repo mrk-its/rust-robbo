@@ -2,17 +2,17 @@ use std::collections::HashSet;
 
 use crate::random;
 
-use consts::DEADLY;
-use levels::Level;
-use log::log;
-use types::{Action, Actions, Direction, Flags, Kind, Position};
-use utils::{
-    dest_coords, direction_by_index, direction_to_index, rotate_clockwise, rotate_counter_clockwise,
-};
-
 use crate::items::{
     Animation, Bear, Bird, BlastHead, Bomb, Bullet, Butterfly, Capsule, Door, ForceField, Gun,
     GunType, Item, LaserHead, Magnet, PushBox, Robbo, SimpleItem, Teleport,
+};
+use consts::DEADLY;
+use levels::Level;
+use log::log;
+use sound::Sound;
+use types::{Action, Actions, Direction, Flags, Kind, Position};
+use utils::{
+    dest_coords, direction_by_index, direction_to_index, rotate_clockwise, rotate_counter_clockwise,
 };
 
 #[derive(Debug)]
@@ -58,14 +58,24 @@ impl Inventory {
             screws: 0,
         }
     }
-    pub fn collect(&mut self, kind: Kind) {
-        match kind {
-            Kind::Bullets => self.bullets += 9,
-            Kind::Key => self.keys += 1,
-            Kind::Screw => self.screws += 1,
-            _ => (),
+    pub fn collect(&mut self, kind: Kind) -> Option<Sound> {
+        let sound = match kind {
+            Kind::Bullets => {
+                self.bullets += 9;
+                Some(Sound::Ammo)
+            }
+            Kind::Key => {
+                self.keys += 1;
+                Some(Sound::Key)
+            }
+            Kind::Screw => {
+                self.screws += 1;
+                Some(Sound::Screw)
+            }
+            _ => None,
         };
         self.show();
+        sound
     }
     pub fn show(&self) {
         log(&format!("{:?}", self));
@@ -83,6 +93,7 @@ pub struct Board {
     pub inventory: Inventory,
     pub finished: bool,
     pub missing_robbo_ticks: usize,
+    sounds: Vec<Sound>,
 }
 
 impl Board {
@@ -153,6 +164,7 @@ impl Board {
             inventory: Inventory::new(),
             finished: false,
             missing_robbo_ticks: 0,
+            sounds: vec![],
         };
         if missing_screws == 0 {
             board.repair_capsule()
@@ -287,6 +299,8 @@ impl Board {
             Some(actions) => {
                 for action in actions {
                     match action {
+                        Action::BombExplosion => self.play_sound(Sound::Bomb),
+                        Action::DoorOpened => self.play_sound(Sound::Door),
                         Action::RelMove(direction) => {
                             self.move_if_empty(pos, direction);
                         }
@@ -307,6 +321,7 @@ impl Board {
                         }
                         Action::DestroyBullet => {
                             self.replace(pos, Some(Box::new(Animation::small_explosion())));
+                            self.play_sound(Sound::GunShot);
                         }
                         Action::RelImpact(direction, force) => {
                             let dest = dest_coords(pos, direction);
@@ -322,7 +337,12 @@ impl Board {
                         Action::CreateBlast(direction) => {
                             self.blaster_shot(pos, direction);
                         }
-                        Action::SpawnRobbo => self.replace(pos, Some(Box::new(Robbo::new()))),
+                        Action::SpawnRobbo(initial) => {
+                            self.replace(pos, Some(Box::new(Robbo::new())));
+                            if initial {
+                                self.play_sound(Sound::Spawn);
+                            }
+                        }
                         Action::SpawnRandomItem => {
                             // empty field, push box, screw, bullet, key, bomb, ground, butterfly, gun or another questionmark
                             let item: Box<dyn Item> = match random::randrange(10) {
@@ -387,6 +407,7 @@ impl Board {
                 let dest_robbo_pos = dest_coords(teleport_pos, dir);
                 if self.is_empty(dest_robbo_pos) {
                     self.destroy(robbo_pos, true);
+                    self.play_sound(Sound::Teleport);
                     self.replace(dest_robbo_pos, Some(Box::new(Animation::teleport_robbo())));
                     return;
                 }
@@ -618,7 +639,9 @@ impl Board {
                 }
             };
             if is_collectable {
-                self.inventory.collect(kind);
+                if let Some(sound) = self.inventory.collect(kind) {
+                    self.play_sound(sound)
+                }
                 self.swap(pos, dest_pos);
                 self.remove(pos);
                 if self.inventory.screws == self.missing_screws {
@@ -635,8 +658,10 @@ impl Board {
                     Some(it) => return it.enter(&mut self.inventory, direction),
                     None => (),
                 }
+                return None;
             }
         };
+        self.play_sound(Sound::Walk);
         None
     }
 
@@ -687,6 +712,7 @@ impl Board {
                         self.inventory.bullets -= 1;
                         self.inventory.show();
                         self.shot(pos, direction);
+                        self.play_sound(Sound::Shot);
                         None
                     } else {
                         None
@@ -705,7 +731,7 @@ impl Board {
     }
 
     pub fn is_robbo_killed(&self) -> bool {
-        return self.missing_robbo_ticks >= 16;
+        self.missing_robbo_ticks >= 16
     }
 
     pub fn explode_all(&mut self) {
@@ -718,6 +744,7 @@ impl Board {
                 }
             }
         }
+        self.play_sound(Sound::Bomb)
     }
     pub fn robbo_shot_event(&mut self, dir: Direction) {
         self.robbo_shooting_dir = Some(dir)
@@ -739,5 +766,12 @@ impl Board {
                 None => Some((dir.0, 0)),
             },
         }
+    }
+    pub fn play_sound(&mut self, sound: Sound) {
+        self.sounds.push(sound)
+    }
+
+    pub fn get_sounds(&mut self) -> Vec<Sound> {
+        self.sounds.drain(..).collect()
     }
 }
