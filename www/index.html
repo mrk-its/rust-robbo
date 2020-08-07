@@ -218,9 +218,13 @@
               universe.next_level(is_shift);
               return true;
             } else {
-              last_chars = (event.key + last_chars).substring(0, 3);
-              if(last_chars == "alo") {
+              last_chars = (event.key + last_chars).substring(0, 10);
+              if(last_chars.startsWith("alo")) {
                 universe.toggle_god_mode();
+                return true;
+              }
+              if(last_chars.startsWith("aisoz")) {
+                universe.toggle_god_mode2();
                 return true;
               }
             }

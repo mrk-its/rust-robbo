@@ -93,6 +93,9 @@ impl Universe {
     pub fn toggle_god_mode(&mut self) {
         self.board.god_mode();
     }
+    pub fn toggle_god_mode2(&mut self) {
+        self.board.god_mode2();
+    }
 
     pub fn robbo_shot(&mut self, kx: i32, ky: i32) {
         self.board.robbo_shot_event((kx, ky))

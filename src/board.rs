@@ -271,6 +271,10 @@ impl Board {
     pub fn remove(&mut self, pos: Position) {
         self.replace(pos, None)
     }
+    pub fn god_mode2(&mut self) {
+        self.inventory.bullets = 99999;
+        self.play_sound(Sound::Bomb)
+    }
 
     pub fn god_mode(&mut self) {
         for y in 0..self.height {
@@ -290,6 +294,7 @@ impl Board {
                 }
             }
         }
+        self.play_sound(Sound::Bomb)
     }
     pub fn dispatch_actions(&mut self, actions: Actions, pos: Position) {
         if let Some(actions) = actions {
@@ -553,7 +558,7 @@ impl Board {
                 None => (false, true, false),
             }
         };
-        if is_destroyable || force && is_bomb_destroyable {
+        if is_destroyable || (force || self.inventory.bullets>1000) && is_bomb_destroyable {
             let animation = if is_question_mark {
                 Animation::question_mark_explosion()
             } else {
