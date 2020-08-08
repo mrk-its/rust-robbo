@@ -44,6 +44,7 @@
         8: 'shoot_default.ogg',
         9: 'gun_default.ogg',
         10: 'teleport.ogg',
+        11: 'capsule.ogg',
       }
 
       let _audio_cache = {}
@@ -138,7 +139,7 @@
       function draw(universe, ctx, skin_image_data, frame_cnt) {
         for(var y=0; y < universe.get_board_height(); y++) {
           for(var x=0; x < universe.get_board_width(); x++) {
-            let tile = universe.get_tile(x, y, Math.floor(frame_cnt / 8));
+            let tile = universe.get_tile(x, y);
             draw_tile(ctx, skin_image_data, tile, x, y);
           }
         }
@@ -209,7 +210,6 @@
               return true;
             } else if(event.code == "Escape") {
               universe.kill_robbo();
-              new Audio("data.bak/sounds/default/bomb.ogg").play()
               return true;
             } else if(event.code == "BracketLeft") {
               universe.prev_level(is_shift);

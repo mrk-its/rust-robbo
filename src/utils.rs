@@ -1,3 +1,4 @@
+use consts;
 use crate::types::{Direction, Position};
 use cfg_if::cfg_if;
 
@@ -23,7 +24,7 @@ pub fn reverse_direction((kx, ky): Direction) -> Direction {
 
 pub fn direction_by_index(index: usize) -> Direction {
     assert!(index < 4);
-    [(1, 0), (0, 1), (-1, 0), (0, -1)][index]
+    consts::ALL_DIRS[index]
 }
 
 pub fn direction_to_index(dir: Direction) -> usize {
@@ -32,7 +33,7 @@ pub fn direction_to_index(dir: Direction) -> usize {
         (0, 1) => 1,
         (-1, 0) => 2,
         (0, -1) => 3,
-        _ => panic!(),
+        _ => 0,
     }
 }
 

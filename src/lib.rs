@@ -16,7 +16,7 @@ mod random;
 mod sound;
 mod types;
 mod utils;
-
+mod tiles;
 use board::Board;
 use cfg_if::cfg_if;
 use levels::LevelSet;
@@ -61,7 +61,7 @@ impl Universe {
     }
 
     pub fn kill_robbo(&mut self) {
-        self.board.kill_robbo()
+//        self.board.kill_robbo()
     }
 
     pub fn prev_level(&mut self, level_set: bool) {
@@ -91,18 +91,18 @@ impl Universe {
     }
 
     pub fn toggle_god_mode(&mut self) {
-        self.board.god_mode();
+        // self.board.god_mode();
     }
     pub fn toggle_god_mode2(&mut self) {
         self.board.god_mode2();
     }
 
-    pub fn robbo_shot(&mut self, kx: i32, ky: i32) {
-        self.board.robbo_shot_event((kx, ky))
+    pub fn robbo_move(&mut self, kx: i32, ky: i32) {
+        self.board.robbo_move_or_shot((kx, ky), false)
     }
 
-    pub fn robbo_move(&mut self, kx: i32, ky: i32) {
-        self.board.robbo_move_event((kx, ky))
+    pub fn robbo_shot(&mut self, kx: i32, ky: i32) {
+        self.board.robbo_move_or_shot((kx, ky), true)
     }
 
     pub fn new(current_levelset: usize, current_level: usize) -> Universe {
@@ -131,17 +131,14 @@ impl Universe {
     }
 
     pub fn get_inventory(&self) -> String {
+        let inventory = &self.board.robbo.inventory;
         format!(
             "level: {:02} screws: {:02} keys: {:02} bullets: {:02}",
             self.current_level + 1,
-            self.board.missing_screws - self.board.inventory.screws,
-            self.board.inventory.keys,
-            self.board.inventory.bullets
+            self.board.missing_screws - inventory.screws,
+            inventory.keys,
+            inventory.bullets
         )
-    }
-
-    pub fn get_missing_robbo_ticks(&self) -> usize {
-        self.board.missing_robbo_ticks
     }
 
     pub fn load_next_level(&mut self) {
@@ -163,8 +160,8 @@ impl Universe {
             self.reload_level();
         }
     }
-    pub fn get_tile(&self, x: i32, y: i32, frame_cnt: usize) -> usize {
-        self.board.get_tile((x, y), frame_cnt)
+    pub fn get_tile(&self, x: i32, y: i32) -> usize {
+        self.board.get_tile((x, y))
     }
     pub fn get_board_width(&self) -> i32 {
         self.board.width

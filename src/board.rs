@@ -1,772 +1,570 @@
 use std::collections::HashSet;
 
-use crate::random;
-
 use crate::items::{
     Animation, Bear, Bird, BlastHead, Bomb, Bullet, Butterfly, Capsule, Door, ForceField, Gun,
     GunType, Item, LaserHead, Magnet, PushBox, Robbo, SimpleItem, Teleport,
 };
-use consts::DEADLY;
+use crate::random;
 use levels::Level;
-use log::log;
-use sound::Sound;
-use types::{Action, Actions, Direction, Flags, Kind, Position};
-use utils::{
-    dest_coords, direction_by_index, direction_to_index, rotate_clockwise, rotate_counter_clockwise,
-};
+use log;
+use sound::{Sound, Sounds};
+use std::collections::HashMap;
+use tiles::{Tile, Tiles};
+use types::{Action, Actions, Direction, Kind, Position};
+use utils::{dest_coords, direction_by_index};
+type Processed = HashSet<usize>;
 
-#[derive(Debug)]
-pub struct Inventory {
-    pub keys: usize,
-    pub bullets: usize,
-    pub screws: usize,
+pub struct Items {
+    items: Vec<Box<dyn Item>>,
+    to_add: Vec<Box<dyn Item>>,
+    to_del: HashSet<usize>,
+    processed: Processed,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Neighbourhood {
-    neighbours: [(Kind, Flags); 4],
-    robbo_dir: Option<Direction>,
-    magnetic_force_dir: Option<Direction>,
-}
-
-impl Neighbourhood {
-    pub fn get_robbo_dir(&self) -> Option<Direction> {
-        self.robbo_dir
-    }
-    pub fn get_magnetic_force_dir(&self) -> Option<Direction> {
-        self.magnetic_force_dir
-    }
-    pub fn get_kind(&self, direction: Direction) -> Kind {
-        self.neighbours[direction_to_index(direction)].0
-    }
-    pub fn get_flags(&self, direction: Direction) -> Flags {
-        self.neighbours[direction_to_index(direction)].1
-    }
-    pub fn is_empty(&self, direction: Direction) -> bool {
-        self.get_kind(direction) == Kind::Empty
-    }
-    pub fn is_deadly(&self) -> bool {
-        self.neighbours.iter().any(|(_, flags)| flags & DEADLY > 0)
-    }
-}
-
-impl Inventory {
-    pub fn new() -> Inventory {
-        Inventory {
-            keys: 0,
-            bullets: 0,
-            screws: 0,
+impl Items {
+    pub fn new(items: Vec<Box<dyn Item>>) -> Items {
+        Items {
+            items,
+            to_del: HashSet::new(),
+            to_add: Vec::new(),
+            processed: HashSet::new(),
         }
     }
-    pub fn collect(&mut self, kind: Kind) -> Option<Sound> {
-        let sound = match kind {
-            Kind::Bullets => {
-                self.bullets += 9;
-                Some(Sound::Ammo)
-            }
-            Kind::Key => {
-                self.keys += 1;
-                Some(Sound::Key)
-            }
-            Kind::Screw => {
-                self.screws += 1;
-                Some(Sound::Screw)
-            }
-            _ => None,
-        };
-        self.show();
-        sound
+    fn init(&mut self) {
+        self.to_del = HashSet::new();
+        self.to_add = Vec::new();
+        self.processed = HashSet::new();
     }
-    pub fn show(&self) {
-        log(&format!("{:?}", self));
+    pub fn get_items(&self, kind: Kind) -> Vec<&Box<dyn Item>> {
+        self.items
+            .iter()
+            .enumerate()
+            .filter(|i| !self.to_del.contains(&i.0) && i.1.get_kind() == kind)
+            .map(|i| i.1)
+            .collect()
+    }
+    fn index_at(&self, pos: Position) -> Option<usize> {
+        self.items
+            .iter()
+            .enumerate()
+            .filter(|i| !self.to_del.contains(&i.0))
+            .find(|i| i.1.get_position() == pos)
+            .map(|i| i.0)
+    }
+    fn mut_item_at(&mut self, pos: Position) -> Option<&mut Box<dyn Item>> {
+        self.items
+            .iter_mut()
+            .find(|item| item.get_position() == pos)
+    }
+    fn item_at(&self, pos: Position) -> Option<&Box<dyn Item>> {
+        self.items.iter().find(|item| item.get_position() == pos)
+    }
+    fn iter_mut(&mut self) -> std::slice::IterMut<std::boxed::Box<(dyn Item)>> {
+        self.items.iter_mut()
+    }
+    fn item_indices_to_process(&self) -> Vec<usize> {
+        self.items
+            .iter()
+            .enumerate()
+            .filter(|i| !self.processed.contains(&i.0))
+            .map(|i| i.0)
+            .collect()
+    }
+    fn is_processed(&self, index: usize) -> bool {
+        self.processed.contains(&index)
+    }
+    fn push(&mut self, item: Box<dyn Item>) {
+        self.items.push(item);
+        self.processed.insert(self.items.len() - 1);
+    }
+    fn get_mut(&mut self, index: usize) -> &mut Box<dyn Item> {
+        self.items.get_mut(index).unwrap()
+    }
+    fn get(&mut self, index: usize) -> &Box<dyn Item> {
+        self.items.get(index).unwrap()
+    }
+    fn queue_remove(&mut self, pos: Position) {
+        if let Some(index) = self.index_at(pos) {
+            log!("item to remove: {:?}", self.item_at(pos));
+            self.to_del.insert(index);
+            self.processed.insert(index);
+        }
+    }
+    fn mark_as_processed(&mut self, pos: Position) {
+        if let Some(index) = self.index_at(pos) {
+            self.processed.insert(index);
+        }
+    }
+    fn sync(&mut self) {
+        let mut to_del: Vec<usize> = self.to_del.iter().cloned().collect();
+        to_del.sort();
+        for index in to_del.iter().rev() {
+            log!("removed: {:?}", self.items[*index]);
+            self.items.remove(*index);
+        }
+
+        for item in self.to_add.drain(..) {
+            self.items.push(item);
+        }
+        self.items.sort_by_key(|item| item.get_position());
     }
 }
 
 pub struct Board {
     pub width: i32,
     pub height: i32,
-    items: Vec<Option<Box<dyn Item>>>,
+    pub items: Items,
+    pub tiles: Tiles,
+    pub robbo: Robbo,
     pub missing_screws: usize,
+    pub missing_robbo_ticks: usize,
     pub robbo_moving_dir: Option<Direction>,
     pub robbo_shooting_dir: Option<Direction>,
-    processed: HashSet<Position>,
-    pub inventory: Inventory,
     pub finished: bool,
-    pub missing_robbo_ticks: usize,
-    sounds: Vec<Sound>,
+    sounds: Sounds,
 }
 
 impl Board {
     pub fn from(level: &Level) -> Board {
-        let mut items: Vec<Option<Box<dyn Item>>> = Vec::new();
+        let mut items = Vec::new();
+        let mut tiles: Tiles = Tiles::new(level.width, level.height);
         let mut missing_screws = 0;
+        let mut robbo = Robbo::new();
         random::seed(2);
         for (y, row) in level.tiles.iter().enumerate() {
             for (x, c) in row.chars().enumerate() {
+                let pos: Position = (x as i32, y as i32);
                 let additional = level.additional.get(&(x, y)).map(|v| &v[..]);
-                let tile: Option<Box<dyn Item>> = match c {
-                    'O' => Some(Box::new(SimpleItem::wall(&[2]))),
-                    'o' => Some(Box::new(SimpleItem::wall(&[29]))),
-                    '-' => Some(Box::new(SimpleItem::wall(&[19]))),
-                    'Q' => Some(Box::new(SimpleItem::wall(&[3]))),
-                    'q' => Some(Box::new(SimpleItem::wall(&[21]))),
-                    'p' => Some(Box::new(SimpleItem::wall(&[68]))),
-                    'P' => Some(Box::new(SimpleItem::wall(&[69]))),
-                    's' => Some(Box::new(SimpleItem::wall(&[10]))),
-                    'S' => Some(Box::new(SimpleItem::wall(&[22]))),
-                    'H' => Some(Box::new(SimpleItem::ground())),
-                    'T' => {
-                        missing_screws += 1;
-                        Some(Box::new(SimpleItem::screw()))
+
+                let tile_map: HashMap<char, Tile> = [
+                    ('O', Tile::wall(2)),
+                    ('o', Tile::wall(29)),
+                    ('-', Tile::wall(19)),
+                    ('Q', Tile::wall(3)),
+                    ('q', Tile::wall(21)),
+                    ('p', Tile::wall(68)),
+                    ('P', Tile::wall(69)),
+                    ('s', Tile::wall(10)),
+                    ('S', Tile::wall(22)),
+                    ('H', Tile::ground()),
+                    ('T', Tile::screw()),
+                    ('\'', Tile::ammo()),
+                    ('%', Tile::key()),
+                ]
+                .iter()
+                .cloned()
+                .collect();
+                let tile = tile_map.get(&c);
+                if let Some(tile) = tile {
+                    if tile.get_kind() == Kind::Screw {
+                        missing_screws += 1
                     }
-                    '\'' => Some(Box::new(SimpleItem::bullets())),
-                    '%' => Some(Box::new(SimpleItem::key())),
-                    'D' => Some(Box::new(Door::new())),
-                    '#' => Some(Box::new(SimpleItem::abox())),
-                    '&' => Some(Box::new(Teleport::new(additional.unwrap_or(&[0, 0])))),
-                    'R' => Some(Box::new(Animation::spawn_robbo())),
-                    '!' => Some(Box::new(Capsule::new())),
-                    '~' => Some(Box::new(PushBox::new())),
-                    'b' => Some(Box::new(Bomb::new())),
-                    '?' => Some(Box::new(SimpleItem::questionmark())),
-                    'V' => Some(Box::new(Butterfly::new())),
-                    '@' => Some(Box::new(Bear::new(
-                        Kind::Bear,
-                        additional.unwrap_or(&[0]),
-                        &[13, 14],
-                    ))),
-                    '*' => Some(Box::new(Bear::new(
+                    tiles.put(pos, tile.clone());
+                    continue;
+                }
+                let mut item: Box<dyn Item> = match c {
+                    'D' => Box::new(Door::new()),
+                    '#' => Box::new(SimpleItem::abox()),
+                    '&' => Box::new(Teleport::new(additional.unwrap_or(&[0, 0]))),
+                    'R' => {
+                        robbo.set_position(pos);
+                        Box::new(Animation::spawn_robbo())
+                    }
+                    '!' => Box::new(Capsule::new()),
+                    '~' => Box::new(PushBox::new()),
+                    'b' => Box::new(Bomb::new()),
+                    '?' => Box::new(SimpleItem::questionmark()),
+                    'V' => Box::new(Butterfly::new()),
+                    '@' => Box::new(Bear::new(Kind::Bear, additional.unwrap_or(&[0]), &[13, 14])),
+                    '*' => Box::new(Bear::new(
                         Kind::BlackBear,
                         additional.unwrap_or(&[0]),
                         &[30, 31],
-                    ))),
-                    '^' => Some(Box::new(Bird::new(additional.unwrap_or(&[0, 0, 0])))),
-                    '}' => Some(Box::new(Gun::new(
-                        additional.unwrap_or(&[0, 0, 0, 0, 0, 0]),
-                    ))),
-                    'L' => Some(Box::new(SimpleItem::horizontal_laser())),
-                    'l' => Some(Box::new(SimpleItem::vertical_laser())),
-                    'M' => Some(Box::new(Magnet::new(additional.unwrap_or(&[0])))),
-                    '=' => Some(Box::new(ForceField::new(additional.unwrap_or(&[0])))),
-                    _ => None,
+                    )),
+                    '^' => Box::new(Bird::new(additional.unwrap_or(&[0, 0, 0]))),
+                    '}' => Box::new(Gun::new(additional.unwrap_or(&[0, 0, 0, 0, 0, 0]))),
+                    'L' => Box::new(SimpleItem::horizontal_laser()),
+                    'l' => Box::new(SimpleItem::vertical_laser()),
+                    'M' => Box::new(Magnet::new(additional.unwrap_or(&[0]))),
+                    '=' => Box::new(ForceField::new(additional.unwrap_or(&[0]))),
+                    _ => continue,
                 };
-                items.push(tile);
+                item.set_position(pos);
+                item.put_tile(&mut tiles);
+                items.push(item);
             }
         }
-        let mut board = Board {
+        Board {
             width: level.width,
             height: level.height,
-            items,
+            items: Items::new(items),
+            robbo: robbo,
+            tiles: tiles,
             missing_screws,
             robbo_moving_dir: None,
             robbo_shooting_dir: None,
-            processed: HashSet::new(),
-            inventory: Inventory::new(),
             finished: false,
+            sounds: Sounds::new(),
             missing_robbo_ticks: 0,
-            sounds: vec![],
-        };
-        if missing_screws == 0 {
-            board.repair_capsule()
-        }
-        board
-    }
-
-    pub fn get_neighbourhood(
-        &self,
-        (x, y): Position,
-        robbo_pos: Option<Position>,
-    ) -> Neighbourhood {
-        let up = self.get_kind_and_flags((x, y - 1));
-        let down = self.get_kind_and_flags((x, y + 1));
-        let left = self.get_kind_and_flags((x - 1, y));
-        let right = self.get_kind_and_flags((x + 1, y));
-
-        let magnetic_force_dir = robbo_pos.and_then(|robbo_pos| {
-            (0..4)
-                .map(direction_by_index)
-                .map(|dir| self.get_magnetic_force_dir(robbo_pos, dir))
-                .find(|dir| dir.is_some())
-                .unwrap_or(None)
-        });
-
-        let robbo_dir = robbo_pos.map(|(robbo_x, robbo_y)| {
-            ((robbo_x as i32) - (x as i32), (robbo_y as i32) - (y as i32))
-        });
-
-        Neighbourhood {
-            neighbours: [right, down, left, up],
-            robbo_dir,
-            magnetic_force_dir,
         }
     }
 
     fn get_magnetic_force_dir(&self, robbo_pos: Position, dir: Direction) -> Option<Direction> {
         let mut pos = dest_coords(robbo_pos, dir);
-        while self.is_empty(pos) {
+        while self.tiles.is_empty(pos) {
             pos = dest_coords(pos, dir);
         }
-        self.get_item(pos)
-            .as_ref()
+        self.items
+            .item_at(pos)
             .and_then(|item| item.as_magnet())
             .filter(|magnet| magnet.get_magnetic_force_dir() == dir)
             .map(|_magnet| dir)
     }
 
-    pub fn is_pos_valid(&self, (x, y): Position) -> bool {
-        x >= 0 && x < self.width && y >= 0 && y < self.height
+    pub fn get_tile(&self, pos: Position) -> usize {
+        self.tiles.get(pos).map(|x| x.get_tile()).unwrap_or(0)
     }
 
-    pub fn get_item(&self, (x, y): Position) -> &Option<Box<dyn Item>> {
-        if self.is_pos_valid((x, y)) {
-            &self.items[(y * self.width + x) as usize]
-        } else {
-            &None
-        }
-    }
-
-    pub fn get_mut_item(&mut self, (x, y): Position) -> Option<&mut Box<dyn Item>> {
-        self.items[(y * self.width + x) as usize].as_mut()
-    }
-
-    pub fn get_kind(&self, pos: Position) -> Kind {
-        if !self.is_pos_valid(pos) {
-            return Kind::Wall;
-        }
-        self.get_item(pos)
-            .as_ref()
-            .map_or(Kind::Empty, |item| item.get_kind())
-    }
-
-    pub fn get_kind_and_flags(&self, pos: Position) -> (Kind, Flags) {
-        if !self.is_pos_valid(pos) {
-            return (Kind::Wall, 0);
-        }
-        self.get_item(pos)
-            .as_ref()
-            .map_or((Kind::Empty, 0), |item| (item.get_kind(), item.get_flags()))
-    }
-
-    pub fn is_empty(&self, (x, y): Position) -> bool {
-        self.is_pos_valid((x, y)) && self.get_item((x, y)).is_none()
-    }
-
-    pub fn get_tile(&self, pos: Position, frame_cnt: usize) -> usize {
-        self.get_item(pos)
-            .as_ref()
-            .map_or(95, |item| item.get_tile(frame_cnt))
-    }
-
-    pub fn swap(&mut self, (x, y): Position, (dx, dy): Position) {
-        self.items.swap(
-            (y * self.width + x) as usize,
-            (dy * self.width + dx) as usize,
-        );
-    }
-
-    pub fn replace(&mut self, (x, y): Position, item: Option<Box<dyn Item>>) {
-        self.items[(y * self.width + x) as usize] = item;
-    }
-
-    pub fn remove(&mut self, pos: Position) {
-        self.replace(pos, None)
-    }
     pub fn god_mode2(&mut self) {
-        self.inventory.bullets = 99999;
+        self.robbo.inventory.bullets = 99999;
         self.play_sound(Sound::Bomb)
     }
 
-    pub fn god_mode(&mut self) {
-        for y in 0..self.height {
-            for x in 0..self.width {
-                let pos = (x, y);
-                let kind = self.get_kind(pos);
-                if kind == Kind::Butterfly
-                    || kind == Kind::Bear
-                    || kind == Kind::BlackBear
-                    || kind == Kind::Bird
-                {
-                    self.destroy(pos, true);
-                } else if kind == Kind::Gun {
-                    if let Some(item) = self.get_mut_item(pos) {
-                        item.as_gun().unwrap().disabled = !item.as_gun().unwrap().disabled
+    // pub fn god_mode(&mut self) {
+    //     for y in 0..self.height {
+    //         for x in 0..self.width {
+    //             let pos = (x, y);
+    //             let kind = self.get_kind(pos);
+    //             match kind {
+    //                 Kind::Butterfly | Kind::Bear | Kind::BlackBear | Kind::Bird => {
+    //                     self.destroy(pos, true)
+    //                 }
+    //                 Kind::Gun => {
+    //                     if let Some(item) = self.get_mut_item(pos) {
+    //                         item.as_gun().unwrap().disabled = !item.as_gun().unwrap().disabled
+    //                     }
+    //                 }
+    //                 Kind::Capsule => {
+    //                     if let Some(item) = self.get_mut_item(pos) {
+    //                         item.as_capsule().unwrap().repair()
+    //                     }
+    //                 }
+    //                 _ => (),
+    //             }
+    //         }
+    //     }
+    //     self.play_sound(Sound::Bomb)
+    // }
+
+    pub fn remove_at(&mut self, pos: Position) {
+        self.items.queue_remove(pos);
+        self.tiles.put_empty(pos);
+    }
+
+    pub fn dispatch_actions(&mut self, mut actions: Actions, pos: Position) {
+        while let Some(action) = actions.pop_first() {
+            match action {
+                Action::PlaySound(sound) => self.play_sound(sound),
+                Action::RelMove(direction) => {
+                    if let Some(item) = self.items.mut_item_at(pos) {
+                        item._mv(direction, &mut self.tiles);
                     }
                 }
-            }
-        }
-        self.play_sound(Sound::Bomb)
-    }
-    pub fn dispatch_actions(&mut self, actions: Actions, pos: Position) {
-        if let Some(actions) = actions {
-            for action in actions {
-                match action {
-                    Action::BombExplosion => self.play_sound(Sound::Bomb),
-                    Action::DoorOpened => self.play_sound(Sound::Door),
-                    Action::RelMove(direction) => {
-                        self.move_if_empty(pos, direction);
+                Action::ForceRelMove(dir) => {
+                    let dest_pos = dest_coords(pos, dir);
+                    self.remove_at(dest_pos);
+                    if let Some(item) = self.items.mut_item_at(pos) {
+                        item._mv(dir, &mut self.tiles);
                     }
-                    Action::LaserHeadMove(direction) => {
-                        self.laser_move(pos, direction);
-                    }
-                    Action::BlastHeadMove(direction) => {
-                        self.blast_move(pos, direction);
-                    }
-                    Action::BlastHeadDestroy => {
-                        self.replace(pos, Some(Box::new(Animation::blast_tail())))
-                    }
-                    Action::AutoRemove => {
-                        self.remove(pos);
-                    }
-                    Action::NextLevel => {
-                        self.finished = true;
-                    }
-                    Action::DestroyBullet => {
-                        self.replace(pos, Some(Box::new(Animation::small_explosion())));
-                        self.play_sound(Sound::GunShot);
-                    }
-                    Action::RelImpact(direction, force) => {
-                        let dest = dest_coords(pos, direction);
-                        self.destroy(dest, force);
-                        self.mark_as_processed(dest);
-                    }
-                    Action::CreateBullet(direction) => {
-                        self.shot(pos, direction);
-                    }
-                    Action::CreateLaser(direction) => {
-                        self.laser_shot(pos, direction);
-                    }
-                    Action::CreateBlast(direction) => {
-                        self.blaster_shot(pos, direction);
-                    }
-                    Action::SpawnRobbo(initial) => {
-                        self.replace(pos, Some(Box::new(Robbo::new())));
-                        if initial {
-                            self.play_sound(Sound::Spawn);
+                }
+                Action::RobboMove(dir) => {
+                    let dst = dest_coords(pos, dir);
+                    if let Some(dst_tile) = self.tiles.get(dst) {
+                        if dst_tile.is_collectable() {
+                            actions.extend(&self.robbo.inventory.collect(dst_tile.get_kind()));
+                            self.remove_at(dst);
                         }
                     }
-                    Action::SpawnRandomItem => {
-                        // empty field, push box, screw, bullet, key, bomb, ground, butterfly, gun or another questionmark
-                        let item: Box<dyn Item> = match random::randrange(10) {
-                            1 => Box::new(PushBox::new()),
-                            2 => Box::new(SimpleItem::screw()),
-                            3 => Box::new(SimpleItem::bullets()),
-                            4 => Box::new(SimpleItem::key()),
-                            5 => Box::new(Bomb::new()),
-                            6 => Box::new(SimpleItem::ground()),
-                            7 => Box::new(Butterfly::new()),
-                            8 => Box::new(Gun::new(&[0, 0, 0, 0, 0, 1])),
-                            9 => Box::new(SimpleItem::questionmark()),
-                            _ => Box::new(Animation::small_explosion()),
-                        };
-                        self.replace(pos, Some(item))
+                    if let Some(dst_tile) = self.tiles.get(dst) {
+                        if dst_tile.is_empty() {
+                            if self.robbo._mv(dir, &mut self.tiles) {
+                                self.play_sound(Sound::Walk);
+                            };
+                        } else if dst_tile.is_moveable() {
+                            let dst_pos = if let Some(item) = self.items.mut_item_at(dst) {
+                                if item._mv(dir, &mut self.tiles) {
+                                    item.pushed(dir);
+                                    let position = item.get_position();
+                                    if self.robbo._mv(dir, &mut self.tiles) {
+                                        self.play_sound(Sound::Walk);
+                                    }
+                                    Some(position)
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            };
+                            if let Some(dst_pos) = dst_pos {
+                                self.items.mark_as_processed(dst_pos)
+                            }
+                        } else {
+                            if let Some(item) = self.items.mut_item_at(dst) {
+                                actions.extend(&item.enter(&mut self.robbo, dir))
+                            }
+                        }
                     }
-                    Action::TeleportRobbo(group, position_in_group, direction) => {
-                        self.teleport_robbo(group, position_in_group, direction);
+                }
+                Action::AutoRemove => self.remove_at(pos),
+                Action::NextLevel => {
+                    self.finished = true;
+                    self.play_sound(Sound::Capsule);
+                }
+                Action::RelImpact(direction, force) => {
+                    let dest = dest_coords(pos, direction);
+                    self.destroy(dest, force);
+                }
+                Action::CreateBullet(direction) => self._shot(pos, direction, GunType::Burst),
+                Action::CreateLaser(direction) => self._shot(pos, direction, GunType::Solid),
+                Action::CreateBlast(direction) => self._shot(pos, direction, GunType::Blaster),
+                Action::CreateLaserTail(pos, dir) => {
+                    self.add_item(pos, Box::new(SimpleItem::laser_tail(dir)))
+                }
+                Action::CreateBlastTail(pos, _dir) => {
+                    self.add_item(pos, Box::new(Animation::blast_tail()))
+                }
+                Action::SmallExplosion => {
+                    self.add_item(pos, Box::new(Animation::small_explosion()));
+                    self.play_sound(Sound::GunShot);
+                }
+                Action::SpawnRobbo(initial) => {
+                    self.robbo.show(&mut self.tiles);
+                    if initial {
+                        self.play_sound(Sound::Spawn);
                     }
+                }
+                Action::KillRobbo => self.destroy(self.robbo.get_position(), false),
+                Action::ExplodeAll => self.robbo.kill(),
+                Action::SpawnRandomItem => {
+                    // empty field, push box, screw, bullet, key, bomb, ground, butterfly, gun or another questionmark
+                    match random::randrange(10) {
+                        1 => self.tiles.put(pos, Tile::screw()),
+                        2 => self.tiles.put(pos, Tile::ammo()),
+                        3 => self.tiles.put(pos, Tile::key()),
+                        4 => self.tiles.put(pos, Tile::ground()),
+                        5 => self.add_item(pos, Box::new(PushBox::new())),
+                        6 => self.add_item(pos, Box::new(Bomb::new())),
+                        7 => self.add_item(pos, Box::new(Butterfly::new())),
+                        8 => self.add_item(pos, Box::new(Gun::new(&[0, 0, 0, 0, 0, 1]))),
+                        9 => self.add_item(pos, Box::new(SimpleItem::questionmark())),
+                        _ => self.add_item(pos, Box::new(Animation::small_explosion())),
+                    };
+                }
+                Action::TeleportRobbo(group, position_in_group, direction) => {
+                    Teleport::teleport_robbo(self, group, position_in_group, direction)
                 }
             }
         }
     }
-
-    pub fn teleport_robbo(&mut self, group: u16, position_in_group: u16, direction: Direction) {
-        let robbo_pos = self.find_robbo().unwrap();
-        let dest_teleport_positions = {
-            let mut teleports = {
-                self.items
-                    .iter()
-                    .enumerate()
-                    .map(|(i, item)| match (i, item) {
-                        (_, Some(it)) => (i, it.as_teleport()),
-                        _ => (i, None),
-                    })
-                    .filter(|(_, v)| v.is_some() && v.unwrap().group == group)
-                    .collect::<Vec<(usize, Option<&Teleport>)>>()
-            };
-            teleports.sort_by_key(|&(_, t)| t.unwrap().position_in_group);
-            let len = teleports.len();
-            let index = teleports
-                .iter()
-                .enumerate()
-                .find(|(_, (_, v))| {
-                    (v.unwrap().position_in_group as usize % len)
-                        == (position_in_group as usize % len)
-                })
-                .map(|(i, _)| i)
-                .unwrap();
-            teleports.rotate_left(index + 1);
-            teleports
-                .iter()
-                .map(|(i, _)| (*i as i32 % self.width, *i as i32 / self.width))
-                .collect::<Vec<Position>>()
-        };
-        for teleport_pos in dest_teleport_positions {
-            let mut dir = direction;
-            let cc = dir.0 != 0; // hack for level 16
-            for _ in 0..4 {
-                let dest_robbo_pos = dest_coords(teleport_pos, dir);
-                if self.is_empty(dest_robbo_pos) {
-                    self.destroy(robbo_pos, true);
-                    self.play_sound(Sound::Teleport);
-                    self.replace(dest_robbo_pos, Some(Box::new(Animation::teleport_robbo())));
-                    return;
-                }
-                dir = if cc {
-                    rotate_counter_clockwise(dir)
-                } else {
-                    rotate_clockwise(dir)
-                }
-            }
-        }
+    pub fn add_item(&mut self, pos: Position, mut item: Box<dyn Item>) {
+        item.set_position(pos);
+        item.put_tile(&mut self.tiles);
+        self.items.push(item);
     }
 
     pub fn tick(&mut self) {
-        self.processed = HashSet::new();
-        let robbo_pos = self.find_robbo();
-        match robbo_pos {
-            Some(pos) => {
-                let neighbours = self.get_neighbourhood(pos, robbo_pos);
-                match neighbours.get_magnetic_force_dir() {
-                    Some(dir) => {
-                        self.robbo_move_or_shot(pos, dir, false);
-                        if self.get_kind(dest_coords(pos, dir)) == Kind::Magnet {
-                            self.destroy(pos, false)
-                        }
-                    }
-                    None => {
-                        if neighbours.is_deadly() {
-                            self.destroy(pos, false);
-                        } else {
-                            let actions = match (self.robbo_shooting_dir, self.robbo_moving_dir) {
-                                (Some(direction), _) => {
-                                    self.robbo_shooting_dir = None;
-                                    self.robbo_move_or_shot(pos, direction, true)
-                                }
-                                (_, Some(direction)) => {
-                                    self.robbo_move_or_shot(pos, direction, false)
-                                }
-                                _ => None,
-                            };
-                            self.dispatch_actions(actions, pos);
-                        }
-                    }
-                }
-                self.missing_robbo_ticks = 0;
-            }
-            None => {
-                self.missing_robbo_ticks += 1;
-                if self.missing_robbo_ticks == 8 {
-                    self.explode_all();
-                }
-            }
+        if self.robbo.is_hidden {
+            self.missing_robbo_ticks += 1;
+        } else {
+            self.missing_robbo_ticks = 0;
         }
-        for y in 0..self.height {
-            let mut skip_to = 0;
-            for x in 0..self.width {
-                if x < skip_to {
-                    continue;
-                }
-                let pos = (x, y);
-                if self.is_processed(pos) {
-                    continue;
-                }
-                if self.get_kind((x, y)) == Kind::ForceField {
-                    skip_to = self.process_force_field(pos);
-                }
-                let neighbours = self.get_neighbourhood(pos, robbo_pos);
-                let actions = {
-                    match self.get_mut_item(pos) {
-                        Some(it) => it.tick(&neighbours),
-                        None => None,
-                    }
-                };
-                self.dispatch_actions(actions, pos);
+        self.items.init();
+        self.tiles.magnetic_force_dir = (0..4)
+            .map(direction_by_index)
+            .map(|dir| self.get_magnetic_force_dir(self.robbo.get_position(), dir))
+            .find(|dir| dir.is_some())
+            .unwrap_or(None);
+
+        let actions = self.robbo.tick(&mut self.tiles);
+        self.dispatch_actions(actions, self.robbo.get_position());
+
+        self.tiles.robbo_pos = Some(self.robbo.get_position());
+
+        for item_index in self.items.item_indices_to_process() {
+            if self.items.is_processed(item_index) {
+                continue;
             }
+            let pos = self.items.get(item_index).get_position();
+            let actions = self.items.get_mut(item_index).tick(&mut self.tiles);
+            self.items.get(item_index).put_tile(&mut self.tiles);
+            self.dispatch_actions(actions, pos);
         }
+        self.items.sync();
+
+        let robbo_neighbours = self.tiles.get_neighbours(self.robbo.get_position());
+        if robbo_neighbours.is_deadly() {
+            self.dispatch_actions(
+                Actions::single(Action::KillRobbo),
+                self.robbo.get_position(),
+            );
+        }
+
+        if self.robbo.inventory.screws >= self.missing_screws {
+            self.repair_capsule()
+        }
+        self.tiles.frame_cnt += 1;
+        // for y in 0..self.height {
+        //     let mut skip_to = 0;
+        //     for x in 0..self.width {
+        //         if x < skip_to {
+        //             continue;
+        //         }
+        //         let pos = (x, y);
+        //         if self.is_processed(pos, &processed) {
+        //             continue;
+        //         }
+        //         if self.get_kind((x, y)) == Kind::ForceField {
+        //             skip_to = self.process_force_field(pos);
+        //         }
+        //         let neighbours = self.get_neighbourhood(pos, robbo_pos);
+        //         let actions = {
+        //             match self.get_mut_item(pos) {
+        //                 Some(it) => it.tick(&neighbours),
+        //                 None => None,
+        //             }
+        //         };
+        //         self.dispatch_actions(actions, pos, &mut processed);
+        //     }
+        // }
     }
 
     pub fn process_force_field(&mut self, (x, y): Position) -> i32 {
         let mut wall_x1 = x;
         let mut wall_x2 = x;
-        while self.get_kind((wall_x1 - 1, y)) != Kind::Wall {
+        while self.tiles.get_kind((wall_x1 - 1, y))!= Kind::Wall {
             wall_x1 -= 1;
         }
-        while self.get_kind((wall_x2, y)) != Kind::Wall {
+        while self.tiles.get_kind((wall_x2, y)) != Kind::Wall {
             wall_x2 += 1;
         }
+
         let ff_dir = self
-            .get_item((x, y))
-            .as_ref()
+            .items
+            .item_at((x, y))
             .unwrap()
             .as_force_field()
             .unwrap()
             .direction;
+
         let (mut x, end_x, step) = if ff_dir == 0 {
             (wall_x1, wall_x2, 1)
         } else {
             (wall_x2 - 1, wall_x1 - 1, -1)
         };
 
-        let tmp = if self.get_kind((x, y)) == Kind::ForceField {
-            self.items[(y * self.width + x) as usize].take()
-        } else {
-            None
-        };
-        x += step;
+        // let tmp = if self.tiles.get((x, y)).get_kind() == Kind::ForceField {
+        //     self.items[(y * self.width + x) as usize].take()
+        // } else {
+        //     None
+        // };
+        // x += step;
 
-        while x != end_x {
-            if self.get_kind((x, y)) == Kind::ForceField {
-                self.swap((x - step, y), (x, y));
-                self.remove((x, y));
-            }
-            x += step;
-        }
+        // while x != end_x {
+        //     if self.get_kind((x, y)) == Kind::ForceField {
+        //         self.swap((x - step, y), (x, y));
+        //         self.remove((x, y));
+        //     }
+        //     x += step;
+        // }
 
-        if let Some(tmp) = tmp {
-            self.items[(y * self.width + x - step) as usize].replace(tmp);
-        }
+        // if let Some(tmp) = tmp {
+        //     self.items[(y * self.width + x - step) as usize].replace(tmp);
+        // }
         wall_x2
     }
 
-    pub fn find_robbo(&self) -> Option<Position> {
-        self.items
-            .iter()
-            .enumerate()
-            .find(|(_, v)| match v {
-                Some(item) => item.get_kind() == Kind::Robbo,
-                None => false,
-            })
-            .map(|(i, _)| (i as i32 % self.width, i as i32 / self.width))
-    }
-
     pub fn destroy(&mut self, pos: Position, force: bool) {
-        let (x, y) = pos;
-        if x < 0 || y < 0 || x >= self.width || y >= self.height {
+        let tile = self.tiles.get_or_wall(pos);
+        if tile.get_kind() == Kind::Robbo {
+            self.robbo.hide(&mut self.tiles);
+            self.add_item(pos, Box::new(Animation::kill_robbo()));
             return;
         }
-        let (is_destroyable, is_bomb_destroyable, is_question_mark) = {
-            match self.get_mut_item(pos) {
-                Some(it) => {
-                    if it.destroy() {
-                        return;
-                    }
-                    (
-                        it.is_destroyable(),
-                        !it.is_undestroyable(),
-                        it.get_kind() == Kind::Questionmark,
-                    )
+        let is_bomb_destroyable = !tile.is_undestroyable();
+        if tile.is_destroyable() || force && is_bomb_destroyable {
+            if tile.get_kind() == Kind::Bomb {
+                if let Some(item) = self.items.mut_item_at(pos) {
+                    item.destroy();
                 }
-                None => (false, true, false),
-            }
-        };
-        if is_destroyable || (force || self.inventory.bullets>1000) && is_bomb_destroyable {
-            let animation = if is_question_mark {
-                Animation::question_mark_explosion()
             } else {
-                Animation::small_explosion()
-            };
-            self.replace(pos, Some(Box::new(animation)));
-        }
-    }
-
-    pub fn mark_as_processed(&mut self, pos: Position) {
-        self.processed.insert(pos);
-    }
-
-    pub fn is_processed(&self, pos: Position) -> bool {
-        self.processed.contains(&pos)
-    }
-
-    pub fn move_if_empty(&mut self, pos: Position, direction: Direction) -> bool {
-        let dest_pos = dest_coords(pos, direction);
-        let is_dst_empty = self.is_empty(dest_pos);
-        if is_dst_empty {
-            self.swap(pos, dest_pos);
-            {
-                let item = self.get_mut_item(dest_pos);
-                if let Some(item) = item {
-                    item.moved(direction);
-                }
+                self.remove_at(pos);
+                let animation = if tile.get_kind() == Kind::Questionmark {
+                    Animation::question_mark_explosion()
+                } else {
+                    Animation::small_explosion()
+                };
+                self.add_item(pos, Box::new(animation));
             }
-            self.mark_as_processed(dest_pos);
         }
-        is_dst_empty
-    }
-
-    pub fn laser_move(&mut self, pos: Position, direction: Direction) {
-        let dest_pos = dest_coords(pos, direction);
-        if self.is_empty(dest_pos) {
-            self.swap(pos, dest_pos);
-            self.replace(pos, Some(Box::new(SimpleItem::laser_tail(direction))));
-            self.mark_as_processed(dest_pos);
-        } else if self.get_kind(dest_pos) == Kind::LaserTail {
-            self.swap(pos, dest_pos);
-            self.replace(pos, None);
-            self.mark_as_processed(dest_pos);
-        }
-    }
-    pub fn blast_move(&mut self, pos: Position, direction: Direction) {
-        let dest_pos = dest_coords(pos, direction);
-        self.swap(pos, dest_pos);
-        self.replace(pos, Some(Box::new(Animation::blast_tail())));
-        self.mark_as_processed(dest_pos);
-        self.mark_as_processed(pos);
     }
 
     pub fn repair_capsule(&mut self) {
-        for item in &mut self.items {
-            if let Some(it) = item {
-                if let Some(capsule) = it.as_capsule() {
-                    capsule.repair()
-                }
-            }
-        }
+        self.items
+            .iter_mut()
+            .find(|item| item.get_kind() == Kind::Capsule)
+            .map(|item| item.as_capsule())
+            .flatten()
+            .map(|c| c.repair());
+        self.play_sound(Sound::Bomb)
     }
 
-    pub fn robbo_move(&mut self, pos: Position, direction: Direction) -> Actions {
-        let dest_pos = dest_coords(pos, direction);
-        if !self.move_if_empty(pos, direction) && self.is_pos_valid(dest_pos) {
-            let (kind, is_collectable, is_moveable) = {
-                let dst = self.get_item(dest_pos);
-                match dst {
-                    Some(item) => (item.get_kind(), item.is_collectable(), item.is_moveable()),
-                    None => (Kind::Empty, false, false),
-                }
-            };
-            if is_collectable {
-                if let Some(sound) = self.inventory.collect(kind) {
-                    self.play_sound(sound)
-                }
-                self.swap(pos, dest_pos);
-                self.remove(pos);
-                if self.inventory.screws == self.missing_screws {
-                    self.repair_capsule();
-                }
-            } else if is_moveable {
-                if self.move_if_empty(dest_pos, direction) {
-                    self.move_if_empty(pos, direction);
-                }
-            } else {
-                let (x, y) = dest_pos;
-                let item = &mut self.items[(y * self.width + x) as usize];
-                match item {
-                    Some(it) => return it.enter(&mut self.inventory, direction),
-                    None => (),
-                }
-                return None;
-            }
-        };
-        self.play_sound(Sound::Walk);
-        None
-    }
-
-    pub fn _shot(&mut self, pos: Position, direction: Direction, gun_type: GunType) -> bool {
+    pub fn _shot(&mut self, pos: Position, direction: Direction, gun_type: GunType) {
         let dest = dest_coords(pos, direction);
-        let is_dst_empty = self.is_empty(dest);
+        let is_dst_empty = self.tiles.is_empty(dest);
         if is_dst_empty {
-            let bullet: Option<Box<dyn Item>> = match gun_type {
-                GunType::Burst => Some(Box::new(Bullet::new(direction))),
-                GunType::Solid => Some(Box::new(LaserHead::new(direction))),
-                GunType::Blaster => Some(Box::new(BlastHead::new(direction))),
+            let bullet: Box<dyn Item> = match gun_type {
+                GunType::Burst => Box::new(Bullet::new(direction)),
+                GunType::Solid => Box::new(LaserHead::new(direction)),
+                GunType::Blaster => Box::new(BlastHead::new(direction)),
             };
-            self.replace(dest, bullet);
-            self.mark_as_processed(dest);
+            self.add_item(dest, bullet);
         } else {
             self.destroy(dest, false);
         }
-        is_dst_empty
-    }
-
-    pub fn shot(&mut self, pos: Position, direction: Direction) -> bool {
-        self._shot(pos, direction, GunType::Burst)
-    }
-
-    pub fn laser_shot(&mut self, pos: Position, direction: Direction) -> bool {
-        self._shot(pos, direction, GunType::Solid)
-    }
-
-    pub fn blaster_shot(&mut self, pos: Position, direction: Direction) -> bool {
-        self._shot(pos, direction, GunType::Blaster)
-    }
-
-    pub fn robbo_move_or_shot(
-        &mut self,
-        _pos: Position,
-        direction: Direction,
-        shot: bool,
-    ) -> Actions {
-        let robbo_pos = self.find_robbo();
-        match robbo_pos {
-            Some(pos) => {
-                {
-                    let robbo = self.get_mut_item(pos).unwrap().as_robbo().unwrap();
-                    robbo.set_direction(direction);
-                }
-                if shot {
-                    if self.inventory.bullets > 0 {
-                        self.inventory.bullets -= 1;
-                        self.inventory.show();
-                        self.shot(pos, direction);
-                        self.play_sound(Sound::Shot);
-                        None
-                    } else {
-                        None
-                    }
-                } else {
-                    self.robbo_move(pos, direction)
-                }
-            }
-            None => None,
+        if let GunType::Burst = gun_type {
+            self.play_sound(Sound::Shot)
         }
     }
 
-    pub fn kill_robbo(&mut self) {
-        if let Some(pos) = self.find_robbo() {
-            self.replace(pos, Some(Box::new(Animation::small_explosion())))
-        }
-    }
+    // pub fn kill_robbo(&mut self) {
+    //     self.robbo.kill();
+    // }
 
     pub fn is_robbo_killed(&self) -> bool {
-        self.missing_robbo_ticks >= 16
+        self.robbo.is_killed
     }
 
-    pub fn explode_all(&mut self) {
-        for y in 0..self.height {
-            for x in 0..self.width {
-                let pos = (x, y);
-                let kind = self.get_kind(pos);
-                if kind != Kind::Empty && kind != Kind::Wall {
-                    self.replace(pos, Some(Box::new(Animation::small_explosion())));
-                }
-            }
-        }
-        self.play_sound(Sound::Bomb)
+    // pub fn explode_all(&mut self) {
+    //     for y in 0..self.height {
+    //         for x in 0..self.width {
+    //             let pos = (x, y);
+    //             let kind = self.get_kind(pos);
+    //             if kind != Kind::Empty && kind != Kind::Wall {
+    //                 self.replace(pos, Some(Box::new(Animation::small_explosion())));
+    //             }
+    //         }
+    //     }
+    //     self.play_sound(Sound::Bomb)
+    // }
+
+    pub fn robbo_move_or_shot(&mut self, dir: Direction, shot: bool) {
+        self.robbo.set_direction(dir, shot)
     }
-    pub fn robbo_shot_event(&mut self, dir: Direction) {
-        self.robbo_shooting_dir = Some(dir)
+    pub fn play_sound(&self, sound: Sound) {
+        self.sounds.play_sound(sound);
     }
 
-    pub fn robbo_move_event(&mut self, dir: Direction) {
-        self.robbo_moving_dir = match dir {
-            (0, 0) => None,
-            (0, _) => Some(dir),
-            (_, 0) => Some(dir),
-            _ => match self.robbo_moving_dir {
-                Some((_, cur_dy)) => {
-                    if cur_dy != 0 {
-                        Some((dir.0, 0))
-                    } else {
-                        Some((0, dir.1))
-                    }
-                }
-                None => Some((dir.0, 0)),
-            },
-        }
-    }
-    pub fn play_sound(&mut self, sound: Sound) {
-        self.sounds.push(sound)
-    }
-
-    pub fn get_sounds(&mut self) -> Vec<Sound> {
-        self.sounds.drain(..).collect()
+    pub fn get_sounds(&self) -> Vec<Sound> {
+        self.sounds.get_sounds()
     }
 }
