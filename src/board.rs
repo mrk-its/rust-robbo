@@ -343,7 +343,7 @@ impl Board {
                         self.play_sound(Sound::Spawn);
                     }
                 }
-                Action::KillRobbo => self.destroy(self.robbo.get_position(), false),
+                Action::KillRobbo => self.kill_robbo(),
                 Action::ExplodeAll => self.robbo.kill(),
                 Action::SpawnRandomItem => {
                     // empty field, push box, screw, bullet, key, bomb, ground, butterfly, gun or another questionmark
@@ -373,11 +373,6 @@ impl Board {
     }
 
     pub fn tick(&mut self) {
-        if self.robbo.is_hidden {
-            self.missing_robbo_ticks += 1;
-        } else {
-            self.missing_robbo_ticks = 0;
-        }
         self.items.init();
         self.tiles.magnetic_force_dir = (0..4)
             .map(direction_by_index)
@@ -399,7 +394,16 @@ impl Board {
             self.items.get(item_index).put_tile(&mut self.tiles);
             self.dispatch_actions(actions, pos);
         }
-        self.items.sync();
+
+        if self.robbo.is_hidden {
+            self.missing_robbo_ticks += 1;
+            if self.missing_robbo_ticks == 8 {
+                self.explode_all();
+            }
+        } else {
+            self.missing_robbo_ticks = 0;
+        }
+
 
         let robbo_neighbours = self.tiles.get_neighbours(self.robbo.get_position());
         if robbo_neighbours.is_deadly() {
@@ -409,9 +413,12 @@ impl Board {
             );
         }
 
-        if self.robbo.inventory.screws >= self.missing_screws {
+        if !self.robbo.is_hidden && self.robbo.inventory.screws >= self.missing_screws {
             self.repair_capsule()
         }
+
+        self.items.sync();
+
         self.tiles.frame_cnt += 1;
         // for y in 0..self.height {
         //     let mut skip_to = 0;
@@ -509,13 +516,15 @@ impl Board {
     }
 
     pub fn repair_capsule(&mut self) {
-        self.items
+        let repaired = self.items
             .iter_mut()
             .find(|item| item.get_kind() == Kind::Capsule)
             .map(|item| item.as_capsule())
             .flatten()
             .map(|c| c.repair());
-        self.play_sound(Sound::Bomb)
+        if let Some(true) = repaired {
+            self.play_sound(Sound::Bomb)
+        }
     }
 
     pub fn _shot(&mut self, pos: Position, direction: Direction, gun_type: GunType) {
@@ -536,26 +545,27 @@ impl Board {
         }
     }
 
-    // pub fn kill_robbo(&mut self) {
-    //     self.robbo.kill();
-    // }
-
-    pub fn is_robbo_killed(&self) -> bool {
-        self.robbo.is_killed
+    pub fn kill_robbo(&mut self) {
+        self.destroy(self.robbo.get_position(), false);
     }
 
-    // pub fn explode_all(&mut self) {
-    //     for y in 0..self.height {
-    //         for x in 0..self.width {
-    //             let pos = (x, y);
-    //             let kind = self.get_kind(pos);
-    //             if kind != Kind::Empty && kind != Kind::Wall {
-    //                 self.replace(pos, Some(Box::new(Animation::small_explosion())));
-    //             }
-    //         }
-    //     }
-    //     self.play_sound(Sound::Bomb)
-    // }
+    pub fn is_robbo_killed(&self) -> bool {
+        self.missing_robbo_ticks > 20
+    }
+
+    pub fn explode_all(&mut self) {
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let pos = (x, y);
+                let kind = self.tiles.get_kind(pos);
+                if kind != Kind::Empty && kind != Kind::Wall {
+                    self.remove_at(pos);
+                    self.add_item(pos, Box::new(Animation::small_explosion()));
+                }
+            }
+        }
+        self.play_sound(Sound::Bomb)
+    }
 
     pub fn robbo_move_or_shot(&mut self, dir: Direction, shot: bool) {
         self.robbo.set_direction(dir, shot)

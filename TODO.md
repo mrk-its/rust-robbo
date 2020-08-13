@@ -1,7 +1,5 @@
 bugs:
-* do not move robbo if hidden
-* killing robbo / Esc
-* entering capsule doesn't work
+* killing robbo by Esc
 * ForceField
 refactoring:
 * create core module / lib / crate independent of wasm / graphics / io

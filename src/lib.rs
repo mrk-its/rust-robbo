@@ -61,7 +61,7 @@ impl Universe {
     }
 
     pub fn kill_robbo(&mut self) {
-//        self.board.kill_robbo()
+        self.board.kill_robbo();
     }
 
     pub fn prev_level(&mut self, level_set: bool) {

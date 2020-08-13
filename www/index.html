@@ -34,17 +34,17 @@
       import init, {Universe} from './pkg/rust_robbo.js';
 
       let audio_files = {
-        1: 'walk_default.ogg',
-        2: 'teleport.ogg',
+        1: 'walk.ogg',
+        // 2: 'teleport.ogg',
         3: 'ammo.ogg',
         4: 'key.ogg',
         5: 'screw.ogg',
         6: 'bomb.ogg',
-        7: 'door_default.ogg',
-        8: 'shoot_default.ogg',
-        9: 'gun_default.ogg',
-        10: 'teleport.ogg',
-        11: 'capsule.ogg',
+        7: 'door.ogg',
+        8: 'shot.ogg',
+        // 9: 'gun_default.ogg',
+        // 10: 'teleport.ogg',
+        // 11: 'capsule.ogg',
       }
 
       let _audio_cache = {}
@@ -54,7 +54,7 @@
           console.warn("no audio file for sound", sound);
           return
         }
-        let audio = new Audio('data/sounds/default/' + audio_files[sound]);
+        let audio = new Audio('data/sounds/custom/' + audio_files[sound]);
         audio.play();
       }
 

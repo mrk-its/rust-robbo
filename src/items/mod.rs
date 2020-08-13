@@ -33,8 +33,10 @@ impl Capsule {
             is_working: false,
         }
     }
-    pub fn repair(&mut self) {
+    pub fn repair(&mut self) -> bool {
+        let was_not_working = !self.is_working;
         self.is_working = true;
+        was_not_working
     }
 }
 
@@ -52,8 +54,12 @@ impl Item for Capsule {
             self.simple_item.tiles[0]
         }
     }
-    fn is_moveable(&self) -> bool {
-        !self.is_working
+    fn get_flags(&self) -> u16 {
+        let mut flags = self.get_simple_item().get_flags();
+        if self.is_working {
+            flags = flags & !consts::MOVEABLE;
+        }
+        flags
     }
     fn as_capsule(&mut self) -> Option<&mut Capsule> {
         Some(self)
