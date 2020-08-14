@@ -9,12 +9,13 @@ pub use self::gun::{Gun, GunType};
 pub use self::item::{Item, SimpleItem};
 pub use self::robbo::{Inventory, Robbo};
 pub use self::teleport::Teleport;
+use crate::board::Board;
 
-use sound::Sound;
 use consts;
 use random;
+use sound::Sound;
 use tiles::Tiles;
-use types::{Action, Actions, Direction, Kind};
+use types::{Action, Actions, Direction, Kind, Position};
 use utils::{
     dest_coords, direction_by_index, reverse_direction, rotate_clockwise, rotate_counter_clockwise,
 };
@@ -86,6 +87,51 @@ impl ForceField {
             direction: params[0],
         }
     }
+    pub fn process_force_field(board: &mut Board, pos: Position) {
+        let (x, y) = pos;
+        let mut wall_x1 = x;
+        let mut wall_x2 = x;
+        while board.tiles.get_kind((wall_x1 - 1, y)) != Kind::Wall {
+            wall_x1 -= 1;
+        }
+        while board.tiles.get_kind((wall_x2, y)) != Kind::Wall {
+            wall_x2 += 1;
+        }
+
+        let ff_dir = board
+            .items
+            .item_at((x, y))
+            .unwrap()
+            .as_force_field()
+            .unwrap()
+            .direction;
+
+        let (mut x, end_x, step) = if ff_dir == 0 {
+            (wall_x1, wall_x2, 1)
+        } else {
+            (wall_x2 - 1, wall_x1 - 1, -1)
+        };
+
+        let tmp = if board.tiles.get_kind((x, y)) == Kind::ForceField {
+            board.remove_at((x, y))
+        } else {
+            None
+        };
+        x += step;
+
+        while x != end_x {
+            if board.tiles.get_kind((x, y)) == Kind::ForceField {
+                board.remove_at((x - step, y));
+                if let Some(item) = board.remove_at((x, y)) {
+                    board.add_item((x - step, y), item);
+                }
+            }
+            x += step;
+        }
+        if let Some(tmp) = tmp {
+            board.add_item((end_x - step, y), tmp);
+        }
+    }
 }
 
 impl Item for ForceField {
@@ -97,6 +143,9 @@ impl Item for ForceField {
     }
     fn as_force_field(&self) -> Option<&ForceField> {
         Some(self)
+    }
+    fn tick(&mut self, tiles: &Tiles) -> Actions {
+        Actions::single(Action::ForceField)
     }
 }
 
@@ -424,7 +473,7 @@ impl Item for BlastHead {
                 return Actions::new(&[
                     Action::ForceRelMove(self.direction),
                     Action::CreateBlastTail(pos, self.direction),
-                ])
+                ]);
             }
         }
         Actions::new(&[

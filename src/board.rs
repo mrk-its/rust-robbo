@@ -12,101 +12,70 @@ use std::collections::HashMap;
 use tiles::{Tile, Tiles};
 use types::{Action, Actions, Direction, Kind, Position};
 use utils::{dest_coords, direction_by_index};
-type Processed = HashSet<usize>;
+type Processed = HashSet<Position>;
 
 pub struct Items {
-    items: Vec<Box<dyn Item>>,
-    to_add: Vec<Box<dyn Item>>,
-    to_del: HashSet<usize>,
+    items: HashMap<Position, Box<dyn Item>>,
     processed: Processed,
 }
 
 impl Items {
     pub fn new(items: Vec<Box<dyn Item>>) -> Items {
+        let mut hashmap = HashMap::new();
+        for item in items {
+            hashmap.insert(item.get_position(), item);
+        }
         Items {
-            items,
-            to_del: HashSet::new(),
-            to_add: Vec::new(),
+            items: hashmap,
             processed: HashSet::new(),
         }
     }
     fn init(&mut self) {
-        self.to_del = HashSet::new();
-        self.to_add = Vec::new();
         self.processed = HashSet::new();
     }
     pub fn get_items(&self, kind: Kind) -> Vec<&Box<dyn Item>> {
         self.items
-            .iter()
-            .enumerate()
-            .filter(|i| !self.to_del.contains(&i.0) && i.1.get_kind() == kind)
-            .map(|i| i.1)
+            .values()
+            .filter(|v| v.get_kind() == kind)
             .collect()
-    }
-    fn index_at(&self, pos: Position) -> Option<usize> {
-        self.items
-            .iter()
-            .enumerate()
-            .filter(|i| !self.to_del.contains(&i.0))
-            .find(|i| i.1.get_position() == pos)
-            .map(|i| i.0)
     }
     fn mut_item_at(&mut self, pos: Position) -> Option<&mut Box<dyn Item>> {
-        self.items
-            .iter_mut()
-            .find(|item| item.get_position() == pos)
+        self.items.get_mut(&pos)
     }
-    fn item_at(&self, pos: Position) -> Option<&Box<dyn Item>> {
-        self.items.iter().find(|item| item.get_position() == pos)
+    pub fn item_at(&self, pos: Position) -> Option<&Box<dyn Item>> {
+        self.items.get(&pos)
     }
-    fn iter_mut(&mut self) -> std::slice::IterMut<std::boxed::Box<(dyn Item)>> {
-        self.items.iter_mut()
+    fn iter_mut(
+        &mut self,
+    ) -> std::collections::hash_map::ValuesMut<'_, (i32, i32), Box<(dyn Item)>> {
+        self.items.values_mut()
     }
-    fn item_indices_to_process(&self) -> Vec<usize> {
-        self.items
-            .iter()
-            .enumerate()
-            .filter(|i| !self.processed.contains(&i.0))
-            .map(|i| i.0)
-            .collect()
+    fn item_indices_to_process(&self) -> Vec<Position> {
+        let mut keys: Vec<Position> = self.items.keys().cloned().collect();
+        keys.sort();
+        keys
     }
-    fn is_processed(&self, index: usize) -> bool {
-        self.processed.contains(&index)
+    fn is_processed(&self, pos: Position) -> bool {
+        self.processed.contains(&pos)
     }
-    fn push(&mut self, item: Box<dyn Item>) {
-        self.items.push(item);
-        self.processed.insert(self.items.len() - 1);
+    pub fn push(&mut self, item: Box<dyn Item>) {
+        assert!(
+            !self.items.contains_key(&item.get_position()),
+            "item: {:?} already contains: {:?}",
+            item, self.items.get(&item.get_position())
+        );
+        let pos = item.get_position();
+        self.items.insert(pos, item);
+        self.processed.insert(pos);
     }
-    fn get_mut(&mut self, index: usize) -> &mut Box<dyn Item> {
-        self.items.get_mut(index).unwrap()
+    fn get_mut(&mut self, pos: Position) -> Option<&mut Box<dyn Item>> {
+        self.items.get_mut(&pos)
     }
-    fn get(&mut self, index: usize) -> &Box<dyn Item> {
-        self.items.get(index).unwrap()
+    fn get(&mut self, pos: Position) -> Option<&Box<dyn Item>> {
+        self.items.get(&pos)
     }
-    fn queue_remove(&mut self, pos: Position) {
-        if let Some(index) = self.index_at(pos) {
-            log!("item to remove: {:?}", self.item_at(pos));
-            self.to_del.insert(index);
-            self.processed.insert(index);
-        }
-    }
-    fn mark_as_processed(&mut self, pos: Position) {
-        if let Some(index) = self.index_at(pos) {
-            self.processed.insert(index);
-        }
-    }
-    fn sync(&mut self) {
-        let mut to_del: Vec<usize> = self.to_del.iter().cloned().collect();
-        to_del.sort();
-        for index in to_del.iter().rev() {
-            log!("removed: {:?}", self.items[*index]);
-            self.items.remove(*index);
-        }
-
-        for item in self.to_add.drain(..) {
-            self.items.push(item);
-        }
-        self.items.sort_by_key(|item| item.get_position());
+    pub fn remove(&mut self, pos: Position) -> Option<Box<dyn Item>> {
+        self.items.remove(&pos)
     }
 }
 
@@ -256,9 +225,58 @@ impl Board {
     //     self.play_sound(Sound::Bomb)
     // }
 
-    pub fn remove_at(&mut self, pos: Position) {
-        self.items.queue_remove(pos);
+    pub fn remove_at(&mut self, pos: Position) -> Option<Box<dyn Item>> {
+        if pos == self.robbo.get_position() {
+            self.robbo.hide(&mut self.tiles);
+            // return None;
+        }
+        let item = self.items.remove(pos);
         self.tiles.put_empty(pos);
+        item
+    }
+
+    pub fn mv(&mut self, pos: Position, dir: Direction) -> Option<Position> {
+        let x = self.items.remove(pos);
+        if x.is_some() {
+            let mut item = x.unwrap();
+            item._mv(dir, &mut self.tiles);
+            let pos = item.get_position();
+            self.items.push(item);
+            Some(pos)
+        } else {
+            None
+        }
+    }
+
+    pub fn add_item(&mut self, pos: Position, mut item: Box<dyn Item>) {
+        self.remove_at(pos);
+        item.set_position(pos);
+        item.put_tile(&mut self.tiles);
+        self.items.push(item);
+    }
+
+    pub fn destroy(&mut self, pos: Position, force: bool) {
+        let tile = self.tiles.get_or_wall(pos);
+        if tile.get_kind() == Kind::Robbo {
+            self.robbo.hide(&mut self.tiles);
+            self.add_item(pos, Box::new(Animation::kill_robbo()));
+            return;
+        }
+        let is_bomb_destroyable = !tile.is_undestroyable();
+        if tile.is_destroyable() || force && is_bomb_destroyable {
+            if tile.get_kind() == Kind::Bomb {
+                if let Some(item) = self.items.mut_item_at(pos) {
+                    item.destroy();
+                }
+            } else {
+                let animation = if tile.get_kind() == Kind::Questionmark {
+                    Animation::question_mark_explosion()
+                } else {
+                    Animation::small_explosion()
+                };
+                self.add_item(pos, Box::new(animation));
+            }
+        }
     }
 
     pub fn dispatch_actions(&mut self, mut actions: Actions, pos: Position) {
@@ -266,16 +284,12 @@ impl Board {
             match action {
                 Action::PlaySound(sound) => self.play_sound(sound),
                 Action::RelMove(direction) => {
-                    if let Some(item) = self.items.mut_item_at(pos) {
-                        item._mv(direction, &mut self.tiles);
-                    }
+                    self.mv(pos, direction);
                 }
                 Action::ForceRelMove(dir) => {
                     let dest_pos = dest_coords(pos, dir);
                     self.remove_at(dest_pos);
-                    if let Some(item) = self.items.mut_item_at(pos) {
-                        item._mv(dir, &mut self.tiles);
-                    }
+                    self.mv(pos, dir);
                 }
                 Action::RobboMove(dir) => {
                     let dst = dest_coords(pos, dir);
@@ -291,23 +305,13 @@ impl Board {
                                 self.play_sound(Sound::Walk);
                             };
                         } else if dst_tile.is_moveable() {
-                            let dst_pos = if let Some(item) = self.items.mut_item_at(dst) {
-                                if item._mv(dir, &mut self.tiles) {
-                                    item.pushed(dir);
-                                    let position = item.get_position();
-                                    if self.robbo._mv(dir, &mut self.tiles) {
-                                        self.play_sound(Sound::Walk);
-                                    }
-                                    Some(position)
-                                } else {
-                                    None
+                            if let Some(dest_pos) = self.mv(dst, dir) {
+                                let item = self.items.get_mut(dest_pos).unwrap();
+                                item.pushed(dir);
+                                if self.robbo._mv(dir, &mut self.tiles) {
+                                    self.play_sound(Sound::Walk);
                                 }
-                            } else {
-                                None
                             };
-                            if let Some(dst_pos) = dst_pos {
-                                self.items.mark_as_processed(dst_pos)
-                            }
                         } else {
                             if let Some(item) = self.items.mut_item_at(dst) {
                                 actions.extend(&item.enter(&mut self.robbo, dir))
@@ -315,7 +319,9 @@ impl Board {
                         }
                     }
                 }
-                Action::AutoRemove => self.remove_at(pos),
+                Action::AutoRemove => {
+                    self.remove_at(pos);
+                }
                 Action::NextLevel => {
                     self.finished = true;
                     self.play_sound(Sound::Capsule);
@@ -363,15 +369,12 @@ impl Board {
                 Action::TeleportRobbo(group, position_in_group, direction) => {
                     Teleport::teleport_robbo(self, group, position_in_group, direction)
                 }
+                Action::ForceField => {
+                    ForceField::process_force_field(self, pos);
+                }
             }
         }
     }
-    pub fn add_item(&mut self, pos: Position, mut item: Box<dyn Item>) {
-        item.set_position(pos);
-        item.put_tile(&mut self.tiles);
-        self.items.push(item);
-    }
-
     pub fn tick(&mut self) {
         self.items.init();
         self.tiles.magnetic_force_dir = (0..4)
@@ -385,14 +388,15 @@ impl Board {
 
         self.tiles.robbo_pos = Some(self.robbo.get_position());
 
-        for item_index in self.items.item_indices_to_process() {
-            if self.items.is_processed(item_index) {
+        for pos in self.items.item_indices_to_process() {
+            if self.items.is_processed(pos) {
                 continue;
             }
-            let pos = self.items.get(item_index).get_position();
-            let actions = self.items.get_mut(item_index).tick(&mut self.tiles);
-            self.items.get(item_index).put_tile(&mut self.tiles);
-            self.dispatch_actions(actions, pos);
+            if let Some(item) = self.items.get_mut(pos) {
+                let actions = item.tick(&mut self.tiles);
+                item.put_tile(&mut self.tiles);
+                self.dispatch_actions(actions, pos);
+            }
         }
 
         if self.robbo.is_hidden {
@@ -403,7 +407,6 @@ impl Board {
         } else {
             self.missing_robbo_ticks = 0;
         }
-
 
         let robbo_neighbours = self.tiles.get_neighbours(self.robbo.get_position());
         if robbo_neighbours.is_deadly() {
@@ -417,106 +420,12 @@ impl Board {
             self.repair_capsule()
         }
 
-        self.items.sync();
-
         self.tiles.frame_cnt += 1;
-        // for y in 0..self.height {
-        //     let mut skip_to = 0;
-        //     for x in 0..self.width {
-        //         if x < skip_to {
-        //             continue;
-        //         }
-        //         let pos = (x, y);
-        //         if self.is_processed(pos, &processed) {
-        //             continue;
-        //         }
-        //         if self.get_kind((x, y)) == Kind::ForceField {
-        //             skip_to = self.process_force_field(pos);
-        //         }
-        //         let neighbours = self.get_neighbourhood(pos, robbo_pos);
-        //         let actions = {
-        //             match self.get_mut_item(pos) {
-        //                 Some(it) => it.tick(&neighbours),
-        //                 None => None,
-        //             }
-        //         };
-        //         self.dispatch_actions(actions, pos, &mut processed);
-        //     }
-        // }
-    }
-
-    pub fn process_force_field(&mut self, (x, y): Position) -> i32 {
-        let mut wall_x1 = x;
-        let mut wall_x2 = x;
-        while self.tiles.get_kind((wall_x1 - 1, y))!= Kind::Wall {
-            wall_x1 -= 1;
-        }
-        while self.tiles.get_kind((wall_x2, y)) != Kind::Wall {
-            wall_x2 += 1;
-        }
-
-        let ff_dir = self
-            .items
-            .item_at((x, y))
-            .unwrap()
-            .as_force_field()
-            .unwrap()
-            .direction;
-
-        let (mut x, end_x, step) = if ff_dir == 0 {
-            (wall_x1, wall_x2, 1)
-        } else {
-            (wall_x2 - 1, wall_x1 - 1, -1)
-        };
-
-        // let tmp = if self.tiles.get((x, y)).get_kind() == Kind::ForceField {
-        //     self.items[(y * self.width + x) as usize].take()
-        // } else {
-        //     None
-        // };
-        // x += step;
-
-        // while x != end_x {
-        //     if self.get_kind((x, y)) == Kind::ForceField {
-        //         self.swap((x - step, y), (x, y));
-        //         self.remove((x, y));
-        //     }
-        //     x += step;
-        // }
-
-        // if let Some(tmp) = tmp {
-        //     self.items[(y * self.width + x - step) as usize].replace(tmp);
-        // }
-        wall_x2
-    }
-
-    pub fn destroy(&mut self, pos: Position, force: bool) {
-        let tile = self.tiles.get_or_wall(pos);
-        if tile.get_kind() == Kind::Robbo {
-            self.robbo.hide(&mut self.tiles);
-            self.add_item(pos, Box::new(Animation::kill_robbo()));
-            return;
-        }
-        let is_bomb_destroyable = !tile.is_undestroyable();
-        if tile.is_destroyable() || force && is_bomb_destroyable {
-            if tile.get_kind() == Kind::Bomb {
-                if let Some(item) = self.items.mut_item_at(pos) {
-                    item.destroy();
-                }
-            } else {
-                self.remove_at(pos);
-                let animation = if tile.get_kind() == Kind::Questionmark {
-                    Animation::question_mark_explosion()
-                } else {
-                    Animation::small_explosion()
-                };
-                self.add_item(pos, Box::new(animation));
-            }
-        }
     }
 
     pub fn repair_capsule(&mut self) {
-        let repaired = self.items
+        let repaired = self
+            .items
             .iter_mut()
             .find(|item| item.get_kind() == Kind::Capsule)
             .map(|item| item.as_capsule())
@@ -559,7 +468,6 @@ impl Board {
                 let pos = (x, y);
                 let kind = self.tiles.get_kind(pos);
                 if kind != Kind::Empty && kind != Kind::Wall {
-                    self.remove_at(pos);
                     self.add_item(pos, Box::new(Animation::small_explosion()));
                 }
             }

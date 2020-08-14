@@ -51,6 +51,7 @@ pub enum Action {
     SmallExplosion,
     KillRobbo,
     ExplodeAll,
+    ForceField,
     PlaySound(Sound),
 }
 pub struct Actions {
