@@ -1,5 +1,3 @@
-pub const LEVEL_DATA: &str = "
-
 This is robbo forever levelset. it seems as a fairly dificult levelset.
 
 
@@ -3515,4 +3513,3 @@ bo.o.o.o~oboHo..
 14.30.}.3.0.1.0.0.0
 15.30.}.3.0.1.0.0.0
 [end]
-";

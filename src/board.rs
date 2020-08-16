@@ -414,7 +414,7 @@ impl Board {
         }
 
         let robbo_neighbours = self.tiles.get_neighbours(self.robbo.get_position());
-        if robbo_neighbours.is_deadly() {
+        if !self.robbo.is_hidden && robbo_neighbours.is_deadly() {
             self.dispatch_actions(
                 Actions::single(Action::KillRobbo),
                 self.robbo.get_position(),

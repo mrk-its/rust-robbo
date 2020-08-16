@@ -8,12 +8,8 @@ extern crate rand;
 mod log;
 mod board;
 mod consts;
-mod forever_level_data;
 mod items;
 mod levels;
-// mod random;
-mod original_level_data;
-mod playground_level_data;
 mod sound;
 mod types;
 mod utils;
@@ -47,8 +43,7 @@ pub struct ArrowKeys {
 #[wasm_bindgen]
 pub struct Universe {
     current_level: usize,
-    current_levelset: usize,
-    level_sets: Vec<LevelSet>,
+    level_set: LevelSet,
     board: Board,
 }
 
@@ -56,7 +51,7 @@ pub struct Universe {
 #[wasm_bindgen]
 impl Universe {
     pub fn reload_level(&mut self) {
-        let level = &self.level_sets[self.current_levelset].levels[self.current_level];
+        let level = &self.level_set.levels[self.current_level];
         log(&format!("{:#?}", level));
         self.board = Board::from(level);
     }
@@ -65,29 +60,16 @@ impl Universe {
         self.board.kill_robbo();
     }
 
-    pub fn prev_level(&mut self, level_set: bool) {
-        if level_set {
-            self.current_levelset = modulo(
-                self.current_levelset as i32 - 1,
-                self.level_sets.len() as i32,
-            ) as usize;
-            self.current_level = 0;
-        } else {
-            self.current_level = modulo(
-                self.current_level as i32 - 1,
-                self.level_sets[self.current_levelset].size() as i32,
-            ) as usize;
-        }
+    pub fn prev_level(&mut self) {
+        self.current_level = modulo(
+            self.current_level as i32 - 1,
+            self.level_set.size() as i32,
+        ) as usize;
         self.reload_level();
     }
-    pub fn next_level(&mut self, level_set: bool) {
-        if level_set {
-            self.current_levelset = (self.current_levelset + 1) % self.level_sets.len();
-            self.current_level = 0;
-        } else {
-            self.current_level =
-                (self.current_level + 1) % self.level_sets[self.current_levelset].size();
-        }
+    pub fn next_level(&mut self) {
+        self.current_level =
+            (self.current_level + 1) % self.level_set.size();
         self.reload_level();
     }
 
@@ -106,29 +88,20 @@ impl Universe {
         self.board.robbo_move_or_shot((kx, ky), true)
     }
 
-    pub fn new(current_levelset: usize, current_level: usize) -> Universe {
+    pub fn new(level_data: String, current_level: usize) -> Universe {
         set_panic_hook();
-
-        let level_sets = vec![
-            LevelSet::parse(original_level_data::LEVEL_DATA),
-            LevelSet::parse(forever_level_data::LEVEL_DATA),
-            LevelSet::parse(playground_level_data::LEVEL_DATA),
-        ];
-        let board = Board::from(&level_sets[current_levelset].levels[current_level]);
+        let level_set = LevelSet::parse(&level_data);
+        let board = Board::from(&level_set.levels[current_level]);
 
         Universe {
             current_level,
-            current_levelset,
-            level_sets,
+            level_set,
             board,
         }
     }
 
     pub fn get_current_level(&self) -> usize {
         self.current_level
-    }
-    pub fn get_current_levelset(&self) -> usize {
-        self.current_levelset
     }
 
     pub fn get_inventory(&self) -> String {
@@ -144,9 +117,8 @@ impl Universe {
 
     pub fn load_next_level(&mut self) {
         self.current_level += 1;
-        if self.current_level >= self.level_sets[self.current_levelset].size() {
+        if self.current_level >= self.level_set.size() {
             self.current_level = 0;
-            self.current_levelset = (self.current_levelset + 1) % self.level_sets.len()
         }
         self.reload_level();
     }

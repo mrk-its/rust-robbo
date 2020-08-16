@@ -1,4 +1,3 @@
-pub const LEVEL_DATA: &str = "
 This is playground. For tests.
 
 [name]
@@ -47,4 +46,3 @@ OOOOOOOOOOOOOOOO
 1
 1.1.}.0.0.2.0.0.0
 [end]
-";
