@@ -56,7 +56,7 @@ pub struct Robbo {
 impl Robbo {
     pub fn new() -> Robbo {
         Robbo {
-            direction: (0, 0),
+            direction: (-1, 0),
             shot_direction: None,
             moving_direction: None,
             inventory: Inventory::new(),

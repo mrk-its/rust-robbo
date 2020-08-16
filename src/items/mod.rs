@@ -504,14 +504,14 @@ impl Animation {
         Animation::new(
             Kind::Explosion,
             &[17, 18, 17, 18, 50, 51, 52],
-            Action::SpawnRobbo(true),
+            Action::SpawnRobbo,
         )
     }
     pub fn kill_robbo() -> Animation {
         Animation::new(Kind::Explosion, &[52, 51, 50], Action::ExplodeAll)
     }
     pub fn teleport_robbo() -> Animation {
-        Animation::new(Kind::Explosion, &[50, 51, 52], Action::SpawnRobbo(false))
+        Animation::new(Kind::Explosion, &[50, 51, 52], Action::SpawnRobbo)
     }
     pub fn question_mark_explosion() -> Animation {
         Animation::new(Kind::Explosion, &[50, 51, 52], Action::SpawnRandomItem)

@@ -1,21 +1,21 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+
+use rand::SeedableRng;
 
 use crate::items::{
     Animation, Bear, Bird, BlastHead, Bomb, Bullet, Butterfly, Capsule, Door, ForceField, Gun,
     GunType, Item, LaserHead, Magnet, PushBox, Robbo, SimpleItem, Teleport,
 };
 use levels::Level;
-use sound::{Sound, Sounds};
-use std::collections::HashMap;
 use rand::Rng;
+use sound::{Sound, Sounds};
 use tiles::{Tile, Tiles};
 use types::{Action, Actions, Direction, Kind, Position};
 use utils::{dest_coords, direction_by_index};
-type Processed = HashSet<Position>;
 
 pub struct Items {
     items: HashMap<Position, Box<dyn Item>>,
-    processed: Processed,
+    processed: HashSet<Position>,
 }
 
 impl Items {
@@ -160,8 +160,7 @@ impl Board {
                 items.push(item);
             }
         }
-        use rand::SeedableRng;
-        Board {
+        let board = Board {
             rng: Box::new(rand::rngs::SmallRng::seed_from_u64(0)),
             width: level.width,
             height: level.height,
@@ -174,7 +173,9 @@ impl Board {
             finished: false,
             sounds: Sounds::new(),
             missing_robbo_ticks: 0,
-        }
+        };
+        board.play_sound(Sound::Spawn);
+        board
     }
 
     fn get_magnetic_force_dir(&self, robbo_pos: Position, dir: Direction) -> Option<Direction> {
@@ -200,12 +201,12 @@ impl Board {
 
     pub fn god_mode(&mut self) {
         let all_guns_disabled = self
-        .items
-        .get_items(Kind::Gun)
-        .iter()
-        .map(|i| i.as_gun())
-        .flatten()
-        .all(|x| x.disabled);
+            .items
+            .get_items(Kind::Gun)
+            .iter()
+            .map(|i| i.as_gun())
+            .flatten()
+            .all(|x| x.disabled);
 
         for pos in self.items.item_positions_to_process() {
             let kind = self.tiles.get_kind(pos);
@@ -215,7 +216,8 @@ impl Board {
                 }
                 Kind::Gun => {
                     if let Some(item) = self.items.mut_item_at(pos) {
-                        item.as_mut_gun().map(|item| item.disabled = !all_guns_disabled);
+                        item.as_mut_gun()
+                            .map(|item| item.disabled = !all_guns_disabled);
                     }
                 }
                 Kind::Capsule => {
@@ -261,6 +263,15 @@ impl Board {
 
     pub fn destroy(&mut self, pos: Position, force: bool) {
         let tile = self.tiles.get_or_wall(pos);
+        if tile.get_kind() == Kind::Bomb {
+            if let Some(item) = self.items.mut_item_at(pos) {
+                item.destroy();
+                return;
+            }
+        }
+        if tile.is_destroyable() {
+            self.play_sound(Sound::Burn)
+        }
         if tile.get_kind() == Kind::Robbo {
             self.robbo.hide(&mut self.tiles);
             self.add_item(pos, Box::new(Animation::kill_robbo()));
@@ -268,18 +279,12 @@ impl Board {
         }
         let is_bomb_destroyable = !tile.is_undestroyable();
         if tile.is_destroyable() || force && is_bomb_destroyable {
-            if tile.get_kind() == Kind::Bomb {
-                if let Some(item) = self.items.mut_item_at(pos) {
-                    item.destroy();
-                }
+            let animation = if tile.get_kind() == Kind::Questionmark {
+                Animation::question_mark_explosion()
             } else {
-                let animation = if tile.get_kind() == Kind::Questionmark {
-                    Animation::question_mark_explosion()
-                } else {
-                    Animation::small_explosion()
-                };
-                self.add_item(pos, Box::new(animation));
-            }
+                Animation::small_explosion()
+            };
+            self.add_item(pos, Box::new(animation));
         }
     }
 
@@ -345,11 +350,8 @@ impl Board {
                     self.add_item(pos, Box::new(Animation::small_explosion()));
                     self.play_sound(Sound::GunShot);
                 }
-                Action::SpawnRobbo(initial) => {
+                Action::SpawnRobbo => {
                     self.robbo.show(&mut self.tiles);
-                    if initial {
-                        self.play_sound(Sound::Spawn);
-                    }
                 }
                 Action::KillRobbo => self.kill_robbo(),
                 Action::ExplodeAll => self.robbo.kill(),

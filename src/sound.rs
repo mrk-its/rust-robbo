@@ -14,6 +14,7 @@ pub enum Sound {
     GunShot = 9,
     Teleport = 10,
     Capsule = 11,
+    Burn = 12,
 }
 
 pub struct Sounds {
