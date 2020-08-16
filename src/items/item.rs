@@ -1,5 +1,4 @@
 use super::{Robbo, Gun, Teleport, Capsule, Magnet, ForceField};
-
 use consts;
 use tiles::{Neighbourhood, Tile, Tiles};
 use types::{Actions, Direction, Flags, Kind, Position};
@@ -26,7 +25,7 @@ pub trait Item: std::fmt::Debug {
     fn get_tile(&self, frame_cnt: usize) -> usize {
         self.get_simple_item().get_tile(frame_cnt)
     }
-    fn tick(&mut self, _tiles: &Tiles) -> Actions {
+    fn tick(&mut self, _tiles: &Tiles, _rng: &mut dyn rand::RngCore) -> Actions {
         Actions::empty()
     }
     fn _mv(&mut self, dir: Direction, tiles: &mut Tiles) -> bool {
@@ -57,10 +56,13 @@ pub trait Item: std::fmt::Debug {
     fn as_teleport(&self) -> Option<&Teleport> {
         None
     }
-    fn as_capsule(&mut self) -> Option<&mut Capsule> {
+    fn as_mut_capsule(&mut self) -> Option<&mut Capsule> {
         None
     }
-    fn as_gun(&mut self) -> Option<&mut Gun> {
+    fn as_mut_gun(&mut self) -> Option<&mut Gun> {
+        None
+    }
+    fn as_gun(&self) -> Option<&Gun> {
         None
     }
     fn as_magnet(&self) -> Option<&Magnet> {

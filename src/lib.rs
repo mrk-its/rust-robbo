@@ -2,6 +2,7 @@ extern crate cfg_if;
 extern crate js_sys;
 extern crate wasm_bindgen;
 extern crate web_sys;
+extern crate rand;
 
 #[macro_use]
 mod log;
@@ -10,9 +11,9 @@ mod consts;
 mod forever_level_data;
 mod items;
 mod levels;
+// mod random;
 mod original_level_data;
 mod playground_level_data;
-mod random;
 mod sound;
 mod types;
 mod utils;
@@ -91,7 +92,7 @@ impl Universe {
     }
 
     pub fn toggle_god_mode(&mut self) {
-        // self.board.god_mode();
+        self.board.god_mode();
     }
     pub fn toggle_god_mode2(&mut self) {
         self.board.god_mode2();

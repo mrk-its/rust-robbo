@@ -113,7 +113,7 @@ impl Item for Robbo {
         let index = direction_to_index(self.direction) * 2;
         self.simple_item.tiles[index + frame_cnt / 2 % 2]
     }
-    fn tick(&mut self, tiles: &Tiles) -> Actions {
+    fn tick(&mut self, tiles: &Tiles, _rng: &mut dyn rand::RngCore) -> Actions {
         if self.is_hidden {
             return Actions::empty();
         }

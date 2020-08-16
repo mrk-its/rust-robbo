@@ -1,9 +1,9 @@
 use consts;
-use random;
 use tiles::Tiles;
 use types::{Action, Actions, Direction, Kind};
 use utils::{direction_by_index, direction_to_index, rotate_clockwise};
 use super::{Item, SimpleItem};
+use rand::Rng;
 
 #[repr(u16)]
 #[derive(Debug)]
@@ -60,7 +60,7 @@ impl Item for Gun {
     fn get_tile(&self, _frame_cnt: usize) -> usize {
         self.simple_item.tiles[direction_to_index(self.shooting_dir)]
     }
-    fn tick(&mut self, tiles: &Tiles) -> Actions {
+    fn tick(&mut self, tiles: &Tiles, rng: &mut dyn rand::RngCore) -> Actions {
         let mut actions: Vec<Action> = Vec::new();
         let neighbours = tiles.get_neighbours(self.get_position());
         if self.is_moveable {
@@ -72,15 +72,15 @@ impl Item for Gun {
             }
         }
         if (self.is_random_rotatable || self.is_rotateable)
-            && random::random() < Gun::ROTATE_PROBABILITY
+            && (rng.gen::<f64>() < Gun::ROTATE_PROBABILITY)
         {
             if self.is_random_rotatable {
-                self.shooting_dir = direction_by_index(random::randrange(4) as usize);
+                self.shooting_dir = direction_by_index(rng.gen::<usize>() % 4);
             } else {
                 self.shooting_dir = rotate_clockwise(self.shooting_dir);
             }
         }
-        if !self.disabled && random::random() < Gun::SHOOTING_PROPABILITY {
+        if !self.disabled && rng.gen::<f64>() < Gun::SHOOTING_PROPABILITY {
             actions.push(match self.gun_type {
                 GunType::Solid => Action::CreateLaser(self.shooting_dir),
                 GunType::Blaster => Action::CreateBlast(self.shooting_dir),
@@ -89,7 +89,11 @@ impl Item for Gun {
         }
         Actions::new(&actions)
     }
-    fn as_gun(&mut self) -> Option<&mut Gun> {
+    fn as_mut_gun(&mut self) -> Option<&mut Gun> {
+        Some(self)
+    }
+
+    fn as_gun(&self) -> Option<&Gun> {
         Some(self)
     }
 }

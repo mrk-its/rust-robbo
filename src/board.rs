@@ -4,11 +4,10 @@ use crate::items::{
     Animation, Bear, Bird, BlastHead, Bomb, Bullet, Butterfly, Capsule, Door, ForceField, Gun,
     GunType, Item, LaserHead, Magnet, PushBox, Robbo, SimpleItem, Teleport,
 };
-use crate::random;
 use levels::Level;
-use log;
 use sound::{Sound, Sounds};
 use std::collections::HashMap;
+use rand::Rng;
 use tiles::{Tile, Tiles};
 use types::{Action, Actions, Direction, Kind, Position};
 use utils::{dest_coords, direction_by_index};
@@ -50,7 +49,7 @@ impl Items {
     ) -> std::collections::hash_map::ValuesMut<'_, (i32, i32), Box<(dyn Item)>> {
         self.items.values_mut()
     }
-    fn item_indices_to_process(&self) -> Vec<Position> {
+    fn item_positions_to_process(&self) -> Vec<Position> {
         let mut keys: Vec<Position> = self.items.keys().cloned().collect();
         keys.sort();
         keys
@@ -62,7 +61,8 @@ impl Items {
         assert!(
             !self.items.contains_key(&item.get_position()),
             "item: {:?} already contains: {:?}",
-            item, self.items.get(&item.get_position())
+            item,
+            self.items.get(&item.get_position())
         );
         let pos = item.get_position();
         self.items.insert(pos, item);
@@ -71,15 +71,13 @@ impl Items {
     fn get_mut(&mut self, pos: Position) -> Option<&mut Box<dyn Item>> {
         self.items.get_mut(&pos)
     }
-    fn get(&mut self, pos: Position) -> Option<&Box<dyn Item>> {
-        self.items.get(&pos)
-    }
     pub fn remove(&mut self, pos: Position) -> Option<Box<dyn Item>> {
         self.items.remove(&pos)
     }
 }
 
 pub struct Board {
+    pub rng: Box<dyn rand::RngCore>,
     pub width: i32,
     pub height: i32,
     pub items: Items,
@@ -99,7 +97,6 @@ impl Board {
         let mut tiles: Tiles = Tiles::new(level.width, level.height);
         let mut missing_screws = 0;
         let mut robbo = Robbo::new();
-        random::seed(2);
         for (y, row) in level.tiles.iter().enumerate() {
             for (x, c) in row.chars().enumerate() {
                 let pos: Position = (x as i32, y as i32);
@@ -163,7 +160,9 @@ impl Board {
                 items.push(item);
             }
         }
+        use rand::SeedableRng;
         Board {
+            rng: Box::new(rand::rngs::SmallRng::seed_from_u64(0)),
             width: level.width,
             height: level.height,
             items: Items::new(items),
@@ -199,31 +198,36 @@ impl Board {
         self.play_sound(Sound::Bomb)
     }
 
-    // pub fn god_mode(&mut self) {
-    //     for y in 0..self.height {
-    //         for x in 0..self.width {
-    //             let pos = (x, y);
-    //             let kind = self.get_kind(pos);
-    //             match kind {
-    //                 Kind::Butterfly | Kind::Bear | Kind::BlackBear | Kind::Bird => {
-    //                     self.destroy(pos, true)
-    //                 }
-    //                 Kind::Gun => {
-    //                     if let Some(item) = self.get_mut_item(pos) {
-    //                         item.as_gun().unwrap().disabled = !item.as_gun().unwrap().disabled
-    //                     }
-    //                 }
-    //                 Kind::Capsule => {
-    //                     if let Some(item) = self.get_mut_item(pos) {
-    //                         item.as_capsule().unwrap().repair()
-    //                     }
-    //                 }
-    //                 _ => (),
-    //             }
-    //         }
-    //     }
-    //     self.play_sound(Sound::Bomb)
-    // }
+    pub fn god_mode(&mut self) {
+        let all_guns_disabled = self
+        .items
+        .get_items(Kind::Gun)
+        .iter()
+        .map(|i| i.as_gun())
+        .flatten()
+        .all(|x| x.disabled);
+
+        for pos in self.items.item_positions_to_process() {
+            let kind = self.tiles.get_kind(pos);
+            match kind {
+                Kind::Butterfly | Kind::Bear | Kind::BlackBear | Kind::Bird => {
+                    self.destroy(pos, true)
+                }
+                Kind::Gun => {
+                    if let Some(item) = self.items.mut_item_at(pos) {
+                        item.as_mut_gun().map(|item| item.disabled = !all_guns_disabled);
+                    }
+                }
+                Kind::Capsule => {
+                    if let Some(item) = self.items.mut_item_at(pos) {
+                        item.as_mut_capsule().unwrap().repair();
+                    }
+                }
+                _ => (),
+            }
+        }
+        self.play_sound(Sound::Bomb)
+    }
 
     pub fn remove_at(&mut self, pos: Position) -> Option<Box<dyn Item>> {
         if pos == self.robbo.get_position() {
@@ -353,7 +357,7 @@ impl Board {
                 Action::ExplodeAll => self.robbo.kill(),
                 Action::SpawnRandomItem => {
                     // empty field, push box, screw, bullet, key, bomb, ground, butterfly, gun or another questionmark
-                    match random::randrange(10) {
+                    match self.rng.gen::<u32>() % 10 {
                         1 => self.tiles.put(pos, Tile::screw()),
                         2 => self.tiles.put(pos, Tile::ammo()),
                         3 => self.tiles.put(pos, Tile::key()),
@@ -367,7 +371,8 @@ impl Board {
                     };
                 }
                 Action::TeleportRobbo(group, position_in_group, direction) => {
-                    Teleport::teleport_robbo(self, group, position_in_group, direction)
+                    Teleport::teleport_robbo(self, group, position_in_group, direction);
+                    self.play_sound(Sound::Teleport);
                 }
                 Action::ForceField => {
                     ForceField::process_force_field(self, pos);
@@ -383,17 +388,17 @@ impl Board {
             .find(|dir| dir.is_some())
             .unwrap_or(None);
 
-        let actions = self.robbo.tick(&mut self.tiles);
+        let actions = self.robbo.tick(&mut self.tiles, self.rng.as_mut());
         self.dispatch_actions(actions, self.robbo.get_position());
 
         self.tiles.robbo_pos = Some(self.robbo.get_position());
 
-        for pos in self.items.item_indices_to_process() {
+        for pos in self.items.item_positions_to_process() {
             if self.items.is_processed(pos) {
                 continue;
             }
             if let Some(item) = self.items.get_mut(pos) {
-                let actions = item.tick(&mut self.tiles);
+                let actions = item.tick(&mut self.tiles, self.rng.as_mut());
                 item.put_tile(&mut self.tiles);
                 self.dispatch_actions(actions, pos);
             }
@@ -428,7 +433,7 @@ impl Board {
             .items
             .iter_mut()
             .find(|item| item.get_kind() == Kind::Capsule)
-            .map(|item| item.as_capsule())
+            .map(|item| item.as_mut_capsule())
             .flatten()
             .map(|c| c.repair());
         if let Some(true) = repaired {

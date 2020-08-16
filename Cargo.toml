@@ -13,7 +13,7 @@ default = ["console_error_panic_hook"]
 cfg-if = "0.1.10"
 wasm-bindgen = "0.2.67"
 js-sys = "0.3.44"
-
+rand = {version = "0.7", features = ["small_rng"]}
 # The `console_error_panic_hook` crate provides better debugging of panics by
 # logging them with `console.error`. This is great for development, but requires
 # all the `std::fmt` and `std::panicking` infrastructure, so isn't great for

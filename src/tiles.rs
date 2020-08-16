@@ -70,7 +70,6 @@ const WALL: Tile = Tile {
 
 pub struct Tiles {
     width: i32,
-    height: i32,
     tiles: Vec<Tile>,
     pub frame_cnt: usize,
     pub robbo_pos: Option<Position>,
@@ -85,7 +84,6 @@ impl Tiles {
         }
         Tiles {
             width,
-            height,
             tiles,
             frame_cnt: 0,
             robbo_pos: Some((0, 0)),

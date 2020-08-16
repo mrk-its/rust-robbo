@@ -10,9 +10,8 @@ pub use self::item::{Item, SimpleItem};
 pub use self::robbo::{Inventory, Robbo};
 pub use self::teleport::Teleport;
 use crate::board::Board;
-
+use rand::Rng;
 use consts;
-use random;
 use sound::Sound;
 use tiles::Tiles;
 use types::{Action, Actions, Direction, Kind, Position};
@@ -62,7 +61,7 @@ impl Item for Capsule {
         }
         flags
     }
-    fn as_capsule(&mut self) -> Option<&mut Capsule> {
+    fn as_mut_capsule(&mut self) -> Option<&mut Capsule> {
         Some(self)
     }
     fn enter(&mut self, _robbo: &mut Robbo, _direction: Direction) -> Actions {
@@ -144,7 +143,7 @@ impl Item for ForceField {
     fn as_force_field(&self) -> Option<&ForceField> {
         Some(self)
     }
-    fn tick(&mut self, tiles: &Tiles) -> Actions {
+    fn tick(&mut self, _tiles: &Tiles, _rng: &mut dyn rand::RngCore) -> Actions {
         Actions::single(Action::ForceField)
     }
 }
@@ -213,7 +212,7 @@ impl Item for Bird {
     fn get_simple_item_mut(&mut self) -> &mut SimpleItem {
         &mut self.simple_item
     }
-    fn tick(&mut self, tiles: &Tiles) -> Actions {
+    fn tick(&mut self, tiles: &Tiles, rng: &mut dyn rand::RngCore) -> Actions {
         let neighbours = tiles.get_neighbours(self.get_position());
         let mut actions = Actions::empty();
         if neighbours.get(self.moving_dir).is_empty() {
@@ -222,7 +221,7 @@ impl Item for Bird {
             let (dx, dy) = self.moving_dir;
             self.moving_dir = (-dx, -dy);
         }
-        if self.is_shooting && random::random() < 0.1 {
+        if self.is_shooting && rng.gen::<f32>() < 0.1 {
             actions.push(Action::CreateBullet(self.shoting_dir));
         }
         actions
@@ -250,7 +249,7 @@ impl Item for Bear {
     fn get_simple_item_mut(&mut self) -> &mut SimpleItem {
         &mut self.simple_item
     }
-    fn tick(&mut self, tiles: &Tiles) -> Actions {
+    fn tick(&mut self, tiles: &Tiles, _rng: &mut dyn rand::RngCore) -> Actions {
         let neighbours = tiles.get_neighbours(self.get_position());
         type RotateFn = dyn Fn(Direction) -> Direction;
         let (r1, r2): (&RotateFn, &RotateFn) = if self.simple_item.get_kind() == Kind::Bear {
@@ -304,7 +303,7 @@ impl Item for Door {
         }
         Actions::empty()
     }
-    fn tick(&mut self, _tiles: &Tiles) -> Actions {
+    fn tick(&mut self, _tiles: &Tiles, _rng: &mut dyn rand::RngCore) -> Actions {
         if self.open {
             Actions::new(&[Action::AutoRemove])
         } else {
@@ -338,7 +337,7 @@ impl Item for Bullet {
         let (kx, _ky) = self.direction;
         self.simple_item.tiles[(if kx != 0 { 0 } else { 2 }) + (frame_cnt % 2)]
     }
-    fn tick(&mut self, tiles: &Tiles) -> Actions {
+    fn tick(&mut self, tiles: &Tiles, _rng: &mut dyn rand::RngCore) -> Actions {
         let neighbours = tiles.get_neighbours(self.get_position());
         if neighbours.get(self.direction).is_empty() {
             Actions::single(Action::RelMove(self.direction))
@@ -374,7 +373,7 @@ impl Item for PushBox {
     fn get_simple_item_mut(&mut self) -> &mut SimpleItem {
         &mut self.simple_item
     }
-    fn tick(&mut self, tiles: &Tiles) -> Actions {
+    fn tick(&mut self, tiles: &Tiles, _rng: &mut dyn rand::RngCore) -> Actions {
         let neighbours = tiles.get_neighbours(self.get_position());
         if self.direction != (0, 0) {
             if neighbours.get(self.direction).is_empty() {
@@ -420,7 +419,7 @@ impl Item for LaserHead {
         let (kx, _ky) = self.direction;
         self.simple_item.tiles[(if kx != 0 { 0 } else { 2 }) + (frame_cnt % 2)]
     }
-    fn tick(&mut self, tiles: &Tiles) -> Actions {
+    fn tick(&mut self, tiles: &Tiles, _rng: &mut dyn rand::RngCore) -> Actions {
         let neighbours = tiles.get_neighbours(self.get_position());
         if neighbours.get(self.direction).is_empty() {
             let pos = self.get_position();
@@ -465,7 +464,7 @@ impl Item for BlastHead {
     fn get_simple_item_mut(&mut self) -> &mut SimpleItem {
         &mut self.simple_item
     }
-    fn tick(&mut self, tiles: &Tiles) -> Actions {
+    fn tick(&mut self, tiles: &Tiles, _rng: &mut dyn rand::RngCore) -> Actions {
         let pos = self.get_position();
         let dst_pos = dest_coords(pos, self.direction);
         if let Some(tile) = tiles.get(dst_pos) {
@@ -532,7 +531,7 @@ impl Item for Animation {
     fn get_tile(&self, _frame_cnt: usize) -> usize {
         self.simple_item.tiles[self.frame]
     }
-    fn tick(&mut self, _tiles: &Tiles) -> Actions {
+    fn tick(&mut self, _tiles: &Tiles, _rng: &mut dyn rand::RngCore) -> Actions {
         let actions = if self.frame < self.simple_item.tiles.len() - 1 {
             self.frame += 1;
             Actions::empty()
@@ -574,7 +573,7 @@ impl Item for Bomb {
     fn get_simple_item_mut(&mut self) -> &mut SimpleItem {
         &mut self.simple_item
     }
-    fn tick(&mut self, _tiles: &Tiles) -> Actions {
+    fn tick(&mut self, _tiles: &Tiles, _rng: &mut dyn rand::RngCore) -> Actions {
         match self.state {
             BombState::Ignited => {
                 self.state = BombState::Exploded;
