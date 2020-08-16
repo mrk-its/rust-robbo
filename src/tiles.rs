@@ -70,6 +70,7 @@ const WALL: Tile = Tile {
 
 pub struct Tiles {
     width: i32,
+    height: i32,
     tiles: Vec<Tile>,
     pub frame_cnt: usize,
     pub robbo_pos: Option<Position>,
@@ -84,6 +85,7 @@ impl Tiles {
         }
         Tiles {
             width,
+            height,
             tiles,
             frame_cnt: 0,
             robbo_pos: Some((0, 0)),
@@ -100,6 +102,9 @@ impl Tiles {
         self.tiles.get((pos.0 + pos.1 * self.width) as usize)
     }
     pub fn get_or_wall(&self, pos: Position) -> Tile {
+        if pos.0 < 0 || pos.0 >= self.width || pos.1 < 0 || pos.1 >= self.height {
+            return WALL;
+        }
         *self.tiles.get((pos.0 + pos.1 * self.width) as usize).unwrap_or(&WALL)
     }
     pub fn get_kind(&self, pos: Position) -> Kind {

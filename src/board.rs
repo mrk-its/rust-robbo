@@ -297,29 +297,27 @@ impl Board {
                 }
                 Action::RobboMove(dir) => {
                     let dst = dest_coords(pos, dir);
-                    if let Some(dst_tile) = self.tiles.get(dst) {
-                        if dst_tile.is_collectable() {
-                            actions.extend(&self.robbo.inventory.collect(dst_tile.get_kind()));
-                            self.remove_at(dst);
-                        }
+                    let dst_tile = self.tiles.get_or_wall(dst);
+                    if dst_tile.is_collectable() {
+                        actions.extend(&self.robbo.inventory.collect(dst_tile.get_kind()));
+                        self.remove_at(dst);
                     }
-                    if let Some(dst_tile) = self.tiles.get(dst) {
-                        if dst_tile.is_empty() {
+                    let dst_tile = self.tiles.get_or_wall(dst);
+                    if dst_tile.is_empty() {
+                        if self.robbo._mv(dir, &mut self.tiles) {
+                            self.play_sound(Sound::Walk);
+                        };
+                    } else if dst_tile.is_moveable() {
+                        if let Some(dest_pos) = self.mv(dst, dir) {
+                            let item = self.items.get_mut(dest_pos).unwrap();
+                            item.pushed(dir);
                             if self.robbo._mv(dir, &mut self.tiles) {
                                 self.play_sound(Sound::Walk);
-                            };
-                        } else if dst_tile.is_moveable() {
-                            if let Some(dest_pos) = self.mv(dst, dir) {
-                                let item = self.items.get_mut(dest_pos).unwrap();
-                                item.pushed(dir);
-                                if self.robbo._mv(dir, &mut self.tiles) {
-                                    self.play_sound(Sound::Walk);
-                                }
-                            };
-                        } else {
-                            if let Some(item) = self.items.mut_item_at(dst) {
-                                actions.extend(&item.enter(&mut self.robbo, dir))
                             }
+                        };
+                    } else {
+                        if let Some(item) = self.items.mut_item_at(dst) {
+                            actions.extend(&item.enter(&mut self.robbo, dir))
                         }
                     }
                 }
